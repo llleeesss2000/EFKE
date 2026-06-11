@@ -261,11 +261,15 @@ async def rebuild(req: Request) -> Any:
 
 @app.post("/api/llm/test")
 async def llm_test(req: Request, body: dict) -> Any:
+    if "base_url" in body and body["base_url"]:
+        body["base_url"] = normalize_url(body["base_url"])
     return await proxy_request("POST", "/llm/test", token=extract_token(req), json=body)
 
 
 @app.post("/api/llm/test-query")
 async def llm_test_query(req: Request, body: dict) -> Any:
+    if "base_url" in body and body["base_url"]:
+        body["base_url"] = normalize_url(body["base_url"])
     return await proxy_request("POST", "/llm/test-query", token=extract_token(req), json=body)
 
 
