@@ -1,5 +1,25 @@
 # 變更記錄
 
+## [1.2.0] - 2026-06-13
+
+### 新增
+- 維基功能：AI 自動整理專案文件，產生維基百科風格知識頁面
+- 帳號管理重設計：使用者列表 + 編輯彈窗（修改角色/密碼/刪除）
+- 查詢頁面改為 Perplexity 風格搜尋介面
+- 專案多選改為膠囊按鈕（Chip）選取
+- 上傳頁面統一拖曳區 + 檔案預覽
+- 進度頁面卡片式佈局 + 狀態徽章
+- LLM 多供應者支援（Ollama/OpenAI/Anthropic/Google/DeepSeek/自訂）
+- LLM 連線測試自動列出可用模型
+- URL 自動補全 http:// 前綴
+- Windows .bat 腳本
+- GitHub Actions CI
+
+### 改進
+- start.sh 端口檢查改用 grep 避免 awk 跳脫問題
+- LLM 測試錯誤訊息不再顯示 undefined
+- README 強調跨主機優勢、與 RAGFlow/Dify/LightRAG 比較
+
 ## [1.1.0] - 2026-06-12
 
 ### 新增
