@@ -904,35 +904,6 @@ $("#uploadSubmitBtn")?.addEventListener("click", async () => {
   $("#filePreview").classList.add("hidden");
   refresh();
 });
-    form.append("file", file, displayName);
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/api/upload");
-    xhr.upload.onprogress = (event) => {
-      const filePercent = event.lengthComputable ? (event.loaded / event.total) * 100 : 0;
-      const overallPercent = ((index + filePercent / 100) / total) * 100;
-      renderUploadProgress({
-        text: `上傳中：${displayName}`,
-        detail: `目前檔案 ${Math.round(filePercent)}%，整體 ${Math.round(overallPercent)}%。`,
-        done: index,
-        total,
-        percent: overallPercent,
-      });
-    };
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          resolve(JSON.parse(xhr.responseText));
-        } catch {
-          resolve({});
-        }
-      } else {
-        reject(new Error(xhr.responseText || `HTTP ${xhr.status}`));
-      }
-    };
-    xhr.onerror = () => reject(new Error("網路錯誤，檔案未完成上傳。"));
-    xhr.send(form);
-  });
-}
 
 
 $("#queryForm").addEventListener("submit", async (event) => {
