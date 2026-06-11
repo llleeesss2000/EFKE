@@ -70,6 +70,7 @@
       </div>
       <nav>
         <button data-view="query" class="active">查詢</button>
+        <button data-view="wiki">維基</button>
         <button data-view="projects">專案</button>
         <button data-view="review">校閱</button>
         <button data-view="upload">上傳</button>
@@ -128,6 +129,26 @@
           <div class="evidence-section">
             <h3>Evidence Package <span id="evidenceCount" class="evidence-count"></span></h3>
             <div id="evidenceList" class="evidence-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="wiki" class="view hidden">
+        <div class="wiki-hero">
+          <h2>知識維基</h2>
+          <p class="query-hero-sub">AI 自動整理專案文件，產生維基百科風格的知識頁面</p>
+        </div>
+        <div class="wiki-controls">
+          <select id="wikiProjectSelect"></select>
+          <button id="wikiGenerateBtn" type="button">產生/更新維基</button>
+          <button id="wikiRefreshBtn" type="button" class="ghost">重新整理</button>
+        </div>
+        <p id="wikiMsg" class="warn"></p>
+        <div id="wikiContent" class="wiki-content">
+          <div class="wiki-empty">
+            <div class="job-empty-icon">📖</div>
+            <p>選擇專案後按「產生維基」</p>
+            <p class="job-empty-sub">AI 會閱讀專案文件，自動產生知識條目</p>
           </div>
         </div>
       </section>
@@ -342,32 +363,57 @@
       </section>
 
       <section id="accounts" class="view hidden">
-        <p class="warn">首次登入使用 admin / 12345 時，請在正式使用前修改密碼。角色支援 admin、user、readonly。</p>
-        <form id="changePasswordForm" class="account-form">
-          <h3>修改密碼</h3>
-          <input name="old_password" type="password" placeholder="目前密碼" required />
-          <input name="new_password" type="password" placeholder="新密碼（至少 4 個字元）" required />
-          <button type="submit">修改密碼</button>
-        </form>
-        <p id="changePasswordMsg" class="warn"></p>
-        <hr />
-        <form id="userForm" class="account-form">
-          <input name="username" placeholder="新帳號" required />
-          <input name="password" type="password" placeholder="新密碼" required />
-          <select name="role">
-            <option value="user">user：一般使用者</option>
-            <option value="readonly">readonly：唯讀使用者</option>
-            <option value="admin">admin：管理者</option>
-          </select>
-          <button type="submit">新增帳號</button>
-        </form>
-        <p id="userMsg" class="warn"></p>
-        <div class="role-help">
-          <div><strong>admin</strong><span>管理者：所有功能，包含備份、重建、刪除與帳號管理。</span></div>
-          <div><strong>user</strong><span>一般使用者：上傳、查詢、建立專案。</span></div>
-          <div><strong>readonly</strong><span>唯讀使用者：只能查詢與查看 Evidence。</span></div>
+        <div class="accounts-hero">
+          <h2>帳號管理</h2>
+          <p class="query-hero-sub">管理使用者帳號、權限與密碼</p>
         </div>
-        <div id="userList" class="table"></div>
+        <div class="accounts-grid">
+          <section class="account-card">
+            <h3>使用者列表</h3>
+            <div id="userTable" class="user-table"></div>
+          </section>
+          <section class="account-card">
+            <h3>新增帳號</h3>
+            <form id="userForm" class="account-form">
+              <label>帳號<input name="username" placeholder="新帳號" required /></label>
+              <label>密碼<input name="password" type="password" placeholder="新密碼" required /></label>
+              <label>角色
+                <select name="role">
+                  <option value="user">user：一般使用者</option>
+                  <option value="readonly">readonly：唯讀使用者</option>
+                  <option value="admin">admin：管理者</option>
+                </select>
+              </label>
+              <button type="submit">新增帳號</button>
+            </form>
+            <p id="userMsg" class="warn"></p>
+          </section>
+        </div>
+        <div id="editUserModal" class="modal hidden">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h3>編輯使用者</h3>
+              <button id="closeModalBtn" class="ghost small-btn" type="button">✕</button>
+            </div>
+            <form id="editUserForm">
+              <input id="editUserId" type="hidden" />
+              <label>帳號<strong id="editUsername"></strong></label>
+              <label>角色
+                <select id="editUserRole">
+                  <option value="user">user</option>
+                  <option value="readonly">readonly</option>
+                  <option value="admin">admin</option>
+                </select>
+              </label>
+              <label>新密碼（留空則不修改）<input id="editUserPassword" type="password" placeholder="新密碼" /></label>
+              <div class="modal-actions">
+                <button type="submit" class="small-btn">儲存</button>
+                <button type="button" id="deleteUserBtn" class="danger small-btn">刪除帳號</button>
+              </div>
+            </form>
+            <p id="editUserMsg" class="warn"></p>
+          </div>
+        </div>
       </section>
     </section>
   </main>

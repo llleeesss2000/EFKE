@@ -91,7 +91,12 @@ async function switchView(name) {
   document.querySelectorAll(".view").forEach((v) => v.classList.add("hidden"));
   document.querySelectorAll(".rail button").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
   $("#" + name).classList.remove("hidden");
-  $("#viewTitle").textContent = { query: "查詢", projects: "專案管理", review: "書籍校閱", reader: "書籍閱讀器", upload: "檔案上傳", files: "檔案 / 書籍管理", jobs: "工作進度", settings: "系統設定", accounts: "帳號管理" }[name];
+  $("#viewTitle").textContent = { query: "查詢", wiki: "知識維基", projects: "專案管理", review: "書籍校閱", reader: "書籍閱讀器", upload: "檔案上傳", files: "檔案 / 書籍管理", jobs: "工作進度", settings: "系統設定", accounts: "帳號管理" }[name];
+  if (name === "wiki") {
+    await loadWikiProjects();
+    await loadWiki();
+    return;
+  }
   if (name === "review") {
     await ensureReviewData();
     renderReview();
@@ -199,7 +204,15 @@ async function refresh() {
     renderFiles();
     renderReview();
     const users = await api("/api/users");
-    $("#userList").innerHTML = users.map((u) => `<div class="row"><strong>${u.username}</strong><span>${u.role} / 首次改密碼：${u.must_change_password ? "是" : "否"}</span></div>`).join("");
+    $("#userTable").innerHTML = users.map((u) => `
+      <div class="user-row">
+        <span class="user-row-name">${escapeHtml(u.username)}</span>
+        <span class="user-row-role ${escapeHtml(u.role)}">${escapeHtml(u.role)}</span>
+        <span style="font-size:12px;color:var(--muted)">${u.must_change_password ? "需改密碼" : ""}</span>
+        <div class="user-row-actions">
+          <button class="ghost small-btn" data-edit-user="${escapeHtml(u.id)}" data-username="${escapeHtml(u.username)}" data-role="${escapeHtml(u.role)}" type="button">編輯</button>
+        </div>
+      </div>`).join("") || '<p style="color:var(--muted)">尚無使用者</p>';
   } catch (err) {
     $("#serverState").textContent = "Server 無法連線";
   }
@@ -942,17 +955,6 @@ $("#queryForm").addEventListener("submit", async (event) => {
   }
 });
 
-$("#changePasswordForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const data = Object.fromEntries(new FormData(event.target));
-  try {
-    await api("/api/auth/change-password", { method: "POST", body: JSON.stringify(data) });
-    $("#changePasswordMsg").textContent = "密碼已修改成功";
-    event.target.reset();
-  } catch (err) {
-    $("#changePasswordMsg").textContent = "修改失敗：" + err.message;
-  }
-});
 
 $("#userForm").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -964,6 +966,49 @@ $("#userForm").addEventListener("submit", async (event) => {
     refresh();
   } catch (err) {
     $("#userMsg").textContent = "新增帳號失敗：" + err.message;
+  }
+});
+
+document.addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-edit-user]");
+  if (btn) {
+    $("#editUserId").value = btn.dataset.editUser;
+    $("#editUsername").textContent = btn.dataset.username;
+    $("#editUserRole").value = btn.dataset.role;
+    $("#editUserPassword").value = "";
+    $("#editUserMsg").textContent = "";
+    $("#editUserModal").classList.remove("hidden");
+  }
+});
+
+$("#closeModalBtn").addEventListener("click", () => $("#editUserModal").classList.add("hidden"));
+$("#editUserModal").addEventListener("click", (e) => { if (e.target === $("#editUserModal")) $("#editUserModal").classList.add("hidden"); });
+
+$("#editUserForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const userId = $("#editUserId").value;
+  const body = { role: $("#editUserRole").value };
+  const pw = $("#editUserPassword").value;
+  if (pw) body.password = pw;
+  try {
+    await api(`/api/users/${userId}`, { method: "PUT", body: JSON.stringify(body) });
+    $("#editUserMsg").textContent = "✓ 已更新";
+    refresh();
+    setTimeout(() => $("#editUserModal").classList.add("hidden"), 800);
+  } catch (err) {
+    $("#editUserMsg").textContent = "更新失敗：" + err.message;
+  }
+});
+
+$("#deleteUserBtn").addEventListener("click", async () => {
+  if (!confirm("確定要刪除這個帳號嗎？")) return;
+  const userId = $("#editUserId").value;
+  try {
+    await api(`/api/users/${userId}`, { method: "DELETE" });
+    $("#editUserModal").classList.add("hidden");
+    refresh();
+  } catch (err) {
+    $("#editUserMsg").textContent = "刪除失敗：" + err.message;
   }
 });
 
@@ -1037,6 +1082,59 @@ $("#llmForm").addEventListener("submit", async (event) => {
   } catch (err) {
     $("#llmSaveMsg").textContent = "儲存失敗：" + err.message;
   }
+});
+
+async function loadWikiProjects() {
+  try {
+    state.projects = await api("/api/projects");
+    const opts = state.projects.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join("");
+    $("#wikiProjectSelect").innerHTML = opts || '<option value="">尚未建立專案</option>';
+  } catch (_) {}
+}
+
+async function loadWiki() {
+  const projectId = $("#wikiProjectSelect").value;
+  if (!projectId) return;
+  try {
+    const data = await api(`/api/wiki/${projectId}`);
+    if (data.pages && data.pages.length) {
+      $("#wikiContent").innerHTML = data.pages.map((page) => {
+        let images = "";
+        try { images = JSON.parse(page.images_json || "[]"); } catch (_) { images = []; }
+        let sources = "";
+        try { sources = JSON.parse(page.sources_json || "[]"); } catch (_) { sources = []; }
+        const imagesHtml = images.length ? `<div class="wiki-page-images">${images.map((img) => `<img src="/api/assets/${escapeHtml(img.id)}" alt="${escapeHtml(img.caption)}" loading="lazy" />`).join("")}</div>` : "";
+        const sourcesHtml = sources.length ? `<div class="wiki-page-sources">${sources.map((s) => `<span>📄 ${escapeHtml(s.file)} 頁 ${s.page}</span>`).join("")}</div>` : "";
+        return `<div class="wiki-page">
+          <h2>${escapeHtml(page.title)}</h2>
+          <div class="wiki-page-body">${escapeHtml(page.content).replace(/^## .+$/m, "").trim()}</div>
+          ${imagesHtml}
+          ${sourcesHtml}
+        </div>`;
+      }).join("");
+    } else {
+      $("#wikiContent").innerHTML = '<div class="wiki-empty"><div class="job-empty-icon">📖</div><p>尚未產生維基</p><p class="job-empty-sub">按「產生/更新維基」開始</p></div>';
+    }
+  } catch (err) {
+    $("#wikiContent").innerHTML = `<div class="wiki-empty"><p>載入失敗：${escapeHtml(err.message)}</p></div>`;
+  }
+}
+
+$("#wikiRefreshBtn").addEventListener("click", () => { loadWikiProjects(); loadWiki(); });
+
+$("#wikiGenerateBtn").addEventListener("click", async () => {
+  const projectId = $("#wikiProjectSelect").value;
+  if (!projectId) { $("#wikiMsg").textContent = "請先選擇專案"; return; }
+  $("#wikiMsg").textContent = "正在產生維基，請稍候（可能需要數分鐘）...";
+  $("#wikiGenerateBtn").disabled = true;
+  try {
+    const data = await api(`/api/wiki/generate/${projectId}`, { method: "POST", body: "{}" });
+    $("#wikiMsg").textContent = `✓ ${data.message}`;
+    loadWiki();
+  } catch (err) {
+    $("#wikiMsg").textContent = "✗ 產生失敗：" + err.message;
+  }
+  $("#wikiGenerateBtn").disabled = false;
 });
 
 $("#backupBtn").addEventListener("click", async () => {

@@ -495,6 +495,115 @@ pre { white-space: pre-wrap; line-height: 1.65; margin: 0; }
   0%, 100% { opacity: 1; }
   50% { opacity: .4; }
 }
+.accounts-hero { text-align: center; padding: 24px 0 0; }
+.accounts-hero h2 { margin: 0 0 4px; font-size: 28px; }
+.accounts-grid {
+  display: grid;
+  grid-template-columns: 1.2fr .8fr;
+  gap: 20px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+.account-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 20px;
+}
+.account-card h3 { margin: 0 0 14px; }
+.user-table { display: grid; gap: 0; }
+.user-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(0,0,0,.06);
+  font-size: 14px;
+}
+.user-row:last-child { border-bottom: 0; }
+.user-row-name { font-weight: 600; }
+.user-row-role {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: var(--line);
+  color: var(--paper);
+}
+.user-row-role.admin { background: var(--accent); }
+.user-row-role.user { background: var(--ok); color: white; }
+.user-row-role.readonly { background: var(--muted); color: white; }
+.user-row-actions { display: flex; gap: 4px; }
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.5);
+  display: grid;
+  place-items: center;
+  z-index: 100;
+}
+.modal.hidden { display: none; }
+.modal-content {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 24px;
+  width: min(420px, 90vw);
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.modal-header h3 { margin: 0; }
+.modal-content label { display: grid; gap: 4px; margin-bottom: 12px; }
+.modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+.wiki-hero { text-align: center; padding: 24px 0 0; }
+.wiki-hero h2 { margin: 0 0 4px; font-size: 28px; }
+.wiki-controls {
+  display: flex;
+  gap: 10px;
+  max-width: 800px;
+  margin: 16px auto 0;
+  align-items: center;
+}
+.wiki-controls select { flex: 1; }
+.wiki-content {
+  max-width: 800px;
+  margin: 20px auto 0;
+}
+.wiki-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--muted);
+}
+.wiki-page {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 24px;
+  margin-bottom: 16px;
+}
+.wiki-page h2 { margin: 0 0 12px; font-size: 22px; border-bottom: 2px solid var(--line); padding-bottom: 8px; }
+.wiki-page-body { line-height: 1.8; font-size: 15px; white-space: pre-wrap; }
+.wiki-page-images {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+.wiki-page-images img {
+  max-height: 180px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+}
+.wiki-page-sources {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--muted);
+}
+.wiki-page-sources span { margin-right: 12px; }
 .evidence-list, .job-list, .table {
   display: grid;
   gap: 10px;

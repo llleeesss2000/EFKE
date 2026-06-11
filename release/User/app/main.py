@@ -216,6 +216,16 @@ async def create_user(req: Request, body: UserBody) -> Any:
     return await proxy_request("POST", "/users", token=extract_token(req), json=body.model_dump())
 
 
+@app.put("/api/users/{user_id}")
+async def update_user(req: Request, user_id: str, body: dict) -> Any:
+    return await proxy_request("PUT", f"/users/{user_id}", token=extract_token(req), json=body)
+
+
+@app.delete("/api/users/{user_id}")
+async def delete_user(req: Request, user_id: str) -> Any:
+    return await proxy_request("DELETE", f"/users/{user_id}", token=extract_token(req))
+
+
 @app.post("/api/upload")
 async def upload(req: Request, project_id: str = Form(...), duplicate_strategy: str = Form("skip"), file: UploadFile = File(...)) -> Any:
     content = await file.read()
@@ -252,6 +262,16 @@ async def history(req: Request) -> Any:
 @app.post("/api/admin/backup")
 async def backup(req: Request) -> Any:
     return await proxy_request("POST", "/admin/backup", token=extract_token(req))
+
+
+@app.get("/api/wiki/{project_id}")
+async def get_wiki(req: Request, project_id: str) -> Any:
+    return await proxy_request("GET", f"/wiki/{project_id}", token=extract_token(req))
+
+
+@app.post("/api/wiki/generate/{project_id}")
+async def generate_wiki(req: Request, project_id: str) -> Any:
+    return await proxy_request("POST", f"/wiki/generate/{project_id}", token=extract_token(req))
 
 
 @app.post("/api/admin/rebuild")

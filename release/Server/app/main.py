@@ -332,6 +332,18 @@ def init_db() -> None:
                 expires_at TEXT NOT NULL,
                 FOREIGN KEY(user_id) REFERENCES users(id)
             );
+            CREATE TABLE IF NOT EXISTS wiki_pages (
+                id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                content TEXT NOT NULL,
+                sources_json TEXT NOT NULL DEFAULT '[]',
+                images_json TEXT NOT NULL DEFAULT '[]',
+                section_order INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(project_id) REFERENCES projects(id)
+            );
             CREATE INDEX IF NOT EXISTS idx_chunks_project ON chunks(project_id);
             CREATE INDEX IF NOT EXISTS idx_blocks_file ON blocks(file_id);
             """
@@ -2064,6 +2076,38 @@ def create_user(body: UserBody) -> dict[str, Any]:
     return one("SELECT id, username, role, must_change_password, created_at FROM users WHERE id=?", (user_id,))
 
 
+class UserUpdateBody(BaseModel):
+    role: str | None = None
+    password: str | None = None
+
+
+@app.put("/users/{user_id}")
+def update_user(user_id: str, body: UserUpdateBody) -> dict[str, Any]:
+    user = one("SELECT * FROM users WHERE id=?", (user_id,))
+    if not user:
+        raise HTTPException(404, "找不到使用者")
+    if body.role and body.role not in {"admin", "user", "readonly"}:
+        raise HTTPException(400, "角色只能是 admin、user 或 readonly")
+    with db() as conn:
+        if body.role:
+            conn.execute("UPDATE users SET role=? WHERE id=?", (body.role, user_id))
+        if body.password:
+            if len(body.password) < 4:
+                raise HTTPException(400, "密碼至少需要 4 個字元")
+            conn.execute("UPDATE users SET password_hash=?, must_change_password=0 WHERE id=?", (sha(body.password), user_id))
+    return one("SELECT id, username, role, must_change_password, created_at FROM users WHERE id=?", (user_id,))
+
+
+@app.delete("/users/{user_id}")
+def delete_user(user_id: str) -> dict[str, str]:
+    user = one("SELECT * FROM users WHERE id=?", (user_id,))
+    if not user:
+        raise HTTPException(404, "找不到使用者")
+    with db() as conn:
+        conn.execute("DELETE FROM users WHERE id=?", (user_id,))
+    return {"message": f"已刪除使用者 {user['username']}"}
+
+
 @app.get("/projects")
 def list_projects() -> list[dict[str, Any]]:
     return rows("SELECT * FROM projects WHERE archived=0 ORDER BY created_at DESC")
@@ -2586,6 +2630,85 @@ def test_llm_query(body: LLMTestBody) -> dict[str, Any]:
         return {"ok": True, "answer": answer, "model": model}
     except Exception as exc:
         return {"ok": False, "error": str(exc)[:200]}
+
+
+def extract_wiki_topics(project_id: str) -> list[str]:
+    topics: dict[str, int] = {}
+    for row in rows("SELECT content FROM chunks WHERE project_id=? LIMIT 500", (project_id,)):
+        text = row["content"].lower()
+        for word in re.findall(r'[\u4e00-\u9fff]{2,6}|[a-zA-Z]{3,}', text):
+            word = word.strip()
+            if len(word) >= 2:
+                topics[word] = topics.get(word, 0) + 1
+    for row in rows("SELECT content FROM ai_knowledge WHERE project_id=? AND relation_type='file_summary'", (project_id,)):
+        text = row["content"]
+        for line in text.splitlines():
+            line = line.strip().lstrip("#*-•1234567890.、）） ")
+            if 4 <= len(line) <= 40:
+                topics[line] = topics.get(line, 0) + 5
+    sorted_topics = sorted(topics.items(), key=lambda x: x[1], reverse=True)
+    seen: set[str] = set()
+    result: list[str] = []
+    for topic, count in sorted_topics:
+        if count >= 2 and topic not in seen and len(result) < 30:
+            seen.add(topic)
+            result.append(topic)
+    return result
+
+
+@app.get("/wiki/{project_id}")
+def get_wiki(project_id: str) -> dict[str, Any]:
+    project = one("SELECT * FROM projects WHERE id=?", (project_id,))
+    if not project:
+        raise HTTPException(404, "找不到專案")
+    pages = rows("SELECT * FROM wiki_pages WHERE project_id=? ORDER BY section_order, created_at", (project_id,))
+    return {"project": project, "pages": pages, "total": len(pages)}
+
+
+@app.post("/wiki/generate/{project_id}")
+def generate_wiki(project_id: str) -> dict[str, Any]:
+    project = one("SELECT * FROM projects WHERE id=?", (project_id,))
+    if not project:
+        raise HTTPException(404, "找不到專案")
+    with db() as conn:
+        conn.execute("DELETE FROM wiki_pages WHERE project_id=?", (project_id,))
+    topics = extract_wiki_topics(project_id)
+    if not topics:
+        return {"message": "專案中沒有足夠內容產生維基", "pages": 0}
+    pages_created = 0
+    for order, topic in enumerate(topics[:20], start=1):
+        evidence = search_evidence(topic, [project_id], top_k=5)
+        evidence_text = "\n".join(f"- {ev['evidence_text'][:300]}（來源：{ev['source_file']}，頁 {ev['page_number']}）" for ev in evidence)
+        if not evidence_text:
+            continue
+        image_hits = rows(
+            "SELECT a.id, a.caption, a.path FROM assets a WHERE a.project_id=? AND (a.caption LIKE ? OR a.ocr_text LIKE ?) LIMIT 3",
+            (project_id, f"%{topic}%", f"%{topic}%"),
+        )
+        images_json = json.dumps([{"id": img["id"], "caption": img["caption"]} for img in image_hits], ensure_ascii=False)
+        sources_json = json.dumps([{"file": ev["source_file"], "page": ev["page_number"], "block": ev["block_id"]} for ev in evidence[:5]], ensure_ascii=False)
+        prompt = f"""根據以下 evidence，為主題「{topic}」撰寫一段維基百科風格的知識條目。
+要求：
+1. 200-400 字
+2. 先給定義，再說明重要概念
+3. 使用繁體中文
+4. 不要編造 evidence 中沒有的資訊
+
+Evidence：
+{evidence_text}
+"""
+        content = call_llm(prompt)
+        if not content:
+            content = f"## {topic}\n\n{evidence_text}"
+        else:
+            content = f"## {topic}\n\n{content}"
+        with db() as conn:
+            conn.execute(
+                "INSERT INTO wiki_pages VALUES (?,?,?,?,?,?,?,?,?)",
+                (str(uuid.uuid4()), project_id, topic, content, sources_json, images_json, order, now(), now()),
+            )
+        pages_created += 1
+    return {"message": f"維基已產生：{pages_created} 個主題", "pages": pages_created}
 
 
 @app.post("/admin/rebuild")
