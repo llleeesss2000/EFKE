@@ -12,16 +12,40 @@
       <p class="kicker">首次設定</p>
       <h1>連線設定</h1>
       <form id="setupForm">
-        <label>Server IP 位址<input name="server_url" placeholder="http://192.168.1.100:8000" required /></label>
-        <label>LLM 位址（選填）<input name="llm_url" placeholder="http://192.168.1.100:11434/v1" /></label>
-        <label>LLM 模型名稱（選填）<input name="llm_model" placeholder="qwen3-coder-next:q8_0" /></label>
+        <label>Server IP 位址<input name="server_url" placeholder="192.168.1.100:8000" required /></label>
         <div class="inline">
           <button type="button" id="testServerBtn">測試連線</button>
-          <button type="submit">儲存並繼續</button>
         </div>
+        <p id="setupMsg" class="warn"></p>
+        <p class="small">把 Server 端啟動後顯示的 IP 位址貼上即可，不用輸入 http://。</p>
+        <hr />
+        <h3>LLM 設定（選填）</h3>
+        <label>供應者
+          <select id="setupLlmProvider" name="llm_provider">
+            <option value="ollama">Ollama（本地免費）</option>
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic (Claude)</option>
+            <option value="google">Google (Gemini)</option>
+            <option value="deepseek">DeepSeek</option>
+            <option value="openai-compat">其他 OpenAI 相容 API</option>
+          </select>
+        </label>
+        <label>API 位址<input name="llm_url" id="setupLlmUrl" placeholder="http://127.0.0.1:11434" /></label>
+        <label>API Key（Ollama 可留空）<input name="llm_api_key" id="setupLlmKey" type="password" placeholder="sk-..." /></label>
+        <div class="llm-actions">
+          <button type="button" id="setupLlmTestBtn">測試 LLM 連線</button>
+          <button type="button" id="setupLlmQueryBtn" class="ghost">測試問答</button>
+        </div>
+        <p id="setupLlmMsg" class="warn"></p>
+        <label>選擇模型
+          <select id="setupLlmModelSelect" name="llm_model">
+            <option value="">先測試連線以載入模型列表</option>
+          </select>
+        </label>
+        <input name="llm_model_manual" id="setupLlmModelManual" placeholder="或手動輸入模型名稱" />
+        <button type="submit">儲存並繼續</button>
       </form>
-      <p id="setupMsg" class="warn"></p>
-      <p class="small">把 Server 端啟動後顯示的 IP 位址貼上即可。</p>
+      <p id="setupFinalMsg" class="warn"></p>
     </section>
   </main>
 

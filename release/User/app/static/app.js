@@ -57,6 +57,13 @@ const llmPresets = {
   "openai-compat": { url: "", key: "", placeholder: "輸入你的 API Key" },
 };
 
+function normalizeUrl(input) {
+  if (!input) return input;
+  input = input.trim();
+  if (/^https?:\/\//i.test(input)) return input;
+  return "http://" + input;
+}
+
 const api = async (path, options = {}) => {
   const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
   if (state.token) headers["Authorization"] = `Bearer ${state.token}`;
@@ -476,7 +483,7 @@ async function checkSetup() {
 }
 
 $("#testServerBtn").addEventListener("click", async () => {
-  const url = document.querySelector("#setupForm input[name='server_url']").value;
+  const url = normalizeUrl(document.querySelector("#setupForm input[name='server_url']").value);
   if (!url) { $("#setupMsg").textContent = "請輸入 Server 位址"; return; }
   $("#setupMsg").textContent = "正在測試連線...";
   try {
@@ -492,14 +499,79 @@ $("#testServerBtn").addEventListener("click", async () => {
   }
 });
 
+$("#setupLlmProvider").addEventListener("change", () => {
+  const preset = llmPresets[$("#setupLlmProvider").value] || {};
+  if (preset.url) $("#setupLlmUrl").value = preset.url;
+  if (preset.key !== undefined) $("#setupLlmKey").placeholder = preset.placeholder || "";
+});
+
+$("#setupLlmTestBtn").addEventListener("click", async () => {
+  const body = {
+    provider: $("#setupLlmProvider").value,
+    base_url: normalizeUrl($("#setupLlmUrl").value),
+    api_key: $("#setupLlmKey").value,
+    model: "",
+  };
+  if (!body.base_url) { $("#setupLlmMsg").textContent = "請輸入 LLM API 位址"; return; }
+  $("#setupLlmMsg").textContent = "正在測試連線...";
+  try {
+    const res = await fetch("/api/llm/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (data.ok) {
+      const select = $("#setupLlmModelSelect");
+      select.innerHTML = "";
+      if (data.models && data.models.length > 0) {
+        data.models.forEach((m) => { const opt = document.createElement("option"); opt.value = m; opt.textContent = m; select.appendChild(opt); });
+        $("#setupLlmMsg").textContent = `✓ 連線成功！找到 ${data.models.length} 個模型，請選擇一個。`;
+      } else {
+        select.innerHTML = '<option value="">未找到模型</option>';
+        $("#setupLlmMsg").textContent = "✓ 連線成功，但未找到可用模型。";
+      }
+    } else {
+      $("#setupLlmMsg").textContent = "✗ " + data.error;
+    }
+  } catch (err) {
+    $("#setupLlmMsg").textContent = "✗ 測試失敗：" + err.message;
+  }
+});
+
+$("#setupLlmQueryBtn").addEventListener("click", async () => {
+  const model = $("#setupLlmModelManual").value || $("#setupLlmModelSelect").value;
+  if (!model) { $("#setupLlmMsg").textContent = "請先選擇或輸入模型名稱"; return; }
+  const body = {
+    provider: $("#setupLlmProvider").value,
+    base_url: normalizeUrl($("#setupLlmUrl").value),
+    api_key: $("#setupLlmKey").value,
+    model: model,
+  };
+  $("#setupLlmMsg").textContent = "正在測試問答...";
+  try {
+    const res = await fetch("/api/llm/test-query", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (data.ok) {
+      $("#setupLlmMsg").textContent = `✓ 模型回答：${data.answer}`;
+    } else {
+      $("#setupLlmMsg").textContent = "✗ " + data.error;
+    }
+  } catch (err) {
+    $("#setupLlmMsg").textContent = "✗ 問答失敗：" + err.message;
+  }
+});
+
 $("#setupForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const data = Object.fromEntries(new FormData(event.target));
+  const serverUrl = normalizeUrl(document.querySelector("#setupForm input[name='server_url']").value);
+  const llmModel = $("#setupLlmModelManual").value || $("#setupLlmModelSelect").value;
+  const body = {
+    server_url: serverUrl,
+    llm_url: normalizeUrl($("#setupLlmUrl").value),
+    llm_model: llmModel,
+  };
   try {
-    await fetch("/api/setup/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
-    $("#setupMsg").textContent = "設定已保存！請重新啟動 User 服務後再登入。";
+    await fetch("/api/setup/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    $("#setupFinalMsg").textContent = "✓ 設定已保存！請重新啟動 User 服務後再登入。";
   } catch (err) {
-    $("#setupMsg").textContent = "儲存失敗：" + err.message;
+    $("#setupFinalMsg").textContent = "儲存失敗：" + err.message;
   }
 });
 
@@ -891,7 +963,7 @@ $("#llmProvider").addEventListener("change", () => {
 $("#llmTestBtn").addEventListener("click", async () => {
   const body = {
     provider: $("#llmProvider").value,
-    base_url: $("#llmBaseUrl").value,
+    base_url: normalizeUrl($("#llmBaseUrl").value),
     api_key: $("#llmApiKey").value,
     model: "",
   };
@@ -922,7 +994,7 @@ $("#llmQueryTestBtn").addEventListener("click", async () => {
   if (!model) { $("#llmTestMsg").textContent = "請先選擇或輸入模型名稱"; return; }
   const body = {
     provider: $("#llmProvider").value,
-    base_url: $("#llmBaseUrl").value,
+    base_url: normalizeUrl($("#llmBaseUrl").value),
     api_key: $("#llmApiKey").value,
     model: model,
   };
@@ -945,7 +1017,7 @@ $("#llmForm").addEventListener("submit", async (event) => {
   if (!model) { $("#llmSaveMsg").textContent = "請選擇或輸入模型名稱"; return; }
   try {
     await api("/api/settings", { method: "POST", body: JSON.stringify({ key: "llm_provider", value: $("#llmProvider").value }) });
-    await api("/api/settings", { method: "POST", body: JSON.stringify({ key: "llm_base_url", value: $("#llmBaseUrl").value }) });
+    await api("/api/settings", { method: "POST", body: JSON.stringify({ key: "llm_base_url", value: normalizeUrl($("#llmBaseUrl").value) }) });
     await api("/api/settings", { method: "POST", body: JSON.stringify({ key: "llm_api_key", value: $("#llmApiKey").value }) });
     await api("/api/settings", { method: "POST", body: JSON.stringify({ key: "llm_model", value: model }) });
     $("#llmSaveMsg").textContent = "✓ LLM 設定已保存";

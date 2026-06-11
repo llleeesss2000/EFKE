@@ -290,7 +290,7 @@ async def setup_status() -> Any:
 
 @app.post("/api/setup/test-server")
 async def test_server(body: SetupBody) -> Any:
-    url = body.server_url.rstrip("/")
+    url = normalize_url(body.server_url)
     try:
         async with httpx.AsyncClient(timeout=5, verify=False) as client:
             resp = await client.get(f"{url}/health")
@@ -301,15 +301,22 @@ async def test_server(body: SetupBody) -> Any:
         return {"ok": False, "error": str(exc)}
 
 
+def normalize_url(url: str) -> str:
+    url = url.strip()
+    if url and not url.startswith(("http://", "https://")):
+        url = "http://" + url
+    return url.rstrip("/")
+
+
 @app.post("/api/setup/save")
 async def save_setup(body: SetupBody) -> Any:
     env_path = BASE_DIR / ".env"
     lines = []
     if env_path.exists():
         lines = env_path.read_text("utf-8", errors="ignore").splitlines()
-    updates = {"SERVER_API_URL": body.server_url.rstrip("/")}
+    updates = {"SERVER_API_URL": normalize_url(body.server_url)}
     if body.llm_url:
-        updates["LLM_BASE_URL"] = body.llm_url.rstrip("/")
+        updates["LLM_BASE_URL"] = normalize_url(body.llm_url)
     if body.llm_model:
         updates["LLM_MODEL"] = body.llm_model
     new_lines = []
