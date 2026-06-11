@@ -528,10 +528,10 @@ $("#setupLlmTestBtn").addEventListener("click", async () => {
         $("#setupLlmMsg").textContent = "✓ 連線成功，但未找到可用模型。";
       }
     } else {
-      $("#setupLlmMsg").textContent = "✗ " + data.error;
+      $("#setupLlmMsg").textContent = "✗ " + (data.error || data.detail || "連線失敗，請確認位址正確");
     }
   } catch (err) {
-    $("#setupLlmMsg").textContent = "✗ 測試失敗：" + err.message;
+    $("#setupLlmMsg").textContent = "✗ 測試失敗：" + (err.message || "無法連線到 Server");
   }
 });
 
@@ -982,10 +982,10 @@ $("#llmTestBtn").addEventListener("click", async () => {
         $("#llmTestMsg").textContent = "✓ 連線成功，但未找到可用模型。";
       }
     } else {
-      $("#llmTestMsg").textContent = "✗ " + data.error;
+      $("#llmTestMsg").textContent = "✗ " + (data.error || data.detail || "連線失敗");
     }
   } catch (err) {
-    $("#llmTestMsg").textContent = "✗ 測試失敗：" + err.message;
+    $("#llmTestMsg").textContent = "✗ 測試失敗：" + (err.message || "無法連線");
   }
 });
 
@@ -1000,11 +1000,11 @@ $("#llmQueryTestBtn").addEventListener("click", async () => {
   };
   $("#llmTestMsg").textContent = "正在測試問答...";
   try {
-    const data = await api("/api/llm/test-query", { method: "POST", body: JSON.stringify(body) });
-    if (data.ok) {
-      $("#llmTestMsg").textContent = `✓ 模型回答：${data.answer}`;
+    const res = await api("/api/llm/test-query", { method: "POST", body: JSON.stringify(body) });
+    if (res.ok) {
+      $("#llmTestMsg").textContent = `✓ 模型回答：${res.answer}`;
     } else {
-      $("#llmTestMsg").textContent = "✗ " + data.error;
+      $("#llmTestMsg").textContent = "✗ " + (res.error || res.detail || "問答失敗");
     }
   } catch (err) {
     $("#llmTestMsg").textContent = "✗ 問答失敗：" + err.message;
