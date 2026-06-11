@@ -4,12 +4,15 @@
 
 ### 新增
 - 維基功能：AI 自動整理專案文件，產生維基百科風格知識頁面
+- 維基支援暫停/繼續/停止控制 + 進度條
+- 維基標注產生模型名稱 + 刪除重建
+- 查詢功能接入 LLM（回答模式+研究模式都用 LLM 整理）
 - 帳號管理重設計：使用者列表 + 編輯彈窗（修改角色/密碼/刪除）
 - 查詢頁面改為 Perplexity 風格搜尋介面
 - 專案多選改為膠囊按鈕（Chip）選取
 - 上傳頁面統一拖曳區 + 檔案預覽
 - 進度頁面卡片式佈局 + 狀態徽章
-- LLM 多供應者支援（Ollama/OpenAI/Anthropic/Google/DeepSeek/自訂）
+- LLM 多供應者支援（Ollama/OpenAI/Anthropic/Google/DeepSeek/NVIDIA NIM/自訂）
 - LLM 連線測試自動列出可用模型
 - URL 自動補全 http:// 前綴
 - Windows .bat 腳本
