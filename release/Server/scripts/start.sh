@@ -42,18 +42,18 @@ rm -f server.pid
 
 if [ ! -x .venv/bin/python ] || [ ! -x .venv/bin/uvicorn ]; then
   echo "venv 不存在或不可用，先自動執行安裝。"
-  PAUSE_ON_EXIT=0 ./install.sh --no-pause
+  PAUSE_ON_EXIT=0 "$(dirname "$0")/install.sh" --no-pause
 fi
 
 VENV_PY="$BASE_DIR/.venv/bin/python"
 if ! grep -Fq "$VENV_PY" .venv/bin/uvicorn 2>/dev/null; then
   echo "偵測到 venv 指向舊路徑，重新建立 venv。"
   mv .venv ".venv.broken.$(date +%Y%m%d_%H%M%S)"
-  PAUSE_ON_EXIT=0 ./install.sh --no-pause
+  PAUSE_ON_EXIT=0 "$(dirname "$0")/install.sh" --no-pause
 fi
 
-if command -v ss >/dev/null 2>&1 && ss -ltn | awk '{print $4}' | grep -q ":${SERVER_PORT}$"; then
-  listener_pid="$(ss -ltnp 2>/dev/null | awk "/:${SERVER_PORT} / {print \\$0}" | sed -n 's/.*pid=\\([0-9]*\\).*/\\1/p' | head -n 1)"
+if command -v ss >/dev/null 2>&1 && ss -ltn 2>/dev/null | grep -q ":${SERVER_PORT} "; then
+  listener_pid="$(ss -ltnp 2>/dev/null | grep ":${SERVER_PORT} " | sed -n 's/.*pid=\([0-9]*\).*/\1/p' | head -n 1)"
   if curl -sS --max-time 2 "http://127.0.0.1:${SERVER_PORT}/health" >/dev/null 2>&1; then
     [ -n "$listener_pid" ] && echo "$listener_pid" > server.pid
     echo "Server 已在執行：PID ${listener_pid:-unknown}"
