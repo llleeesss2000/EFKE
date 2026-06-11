@@ -182,6 +182,19 @@ async function refresh() {
       const meta = configMeta[k] || [k, "請參考 .env 設定。"];
       return `<dt><code>${k}</code><span>${meta[0]}</span></dt><dd><strong>${v || "未設定"}</strong><small>${meta[1]}</small></dd>`;
     }).join("");
+    try {
+      const settings = await api("/api/settings");
+      if (settings.llm_provider) $("#llmProvider").value = settings.llm_provider;
+      if (settings.llm_base_url) $("#llmBaseUrl").value = settings.llm_base_url;
+      if (settings.llm_api_key) $("#llmApiKey").value = settings.llm_api_key;
+      if (settings.llm_model) {
+        $("#llmModelManual").value = settings.llm_model;
+        const select = $("#llmModelSelect");
+        let found = false;
+        for (const opt of select.options) { if (opt.value === settings.llm_model) { opt.selected = true; found = true; break; } }
+        if (!found) { const opt = document.createElement("option"); opt.value = settings.llm_model; opt.textContent = settings.llm_model; opt.selected = true; select.appendChild(opt); }
+      }
+    } catch (_) {}
     state.projects = await api("/api/projects");
     const summaries = await Promise.all(state.projects.map(async (p) => {
       try {
