@@ -583,7 +583,15 @@ pre { white-space: pre-wrap; line-height: 1.65; margin: 0; }
   padding: 24px;
   margin-bottom: 16px;
 }
-.wiki-page h2 { margin: 0 0 12px; font-size: 22px; border-bottom: 2px solid var(--line); padding-bottom: 8px; }
+.wiki-page h2 { margin: 0 0 12px; font-size: 22px; border-bottom: 2px solid var(--line); padding-bottom: 8px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.wiki-model-tag {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--line);
+  color: var(--paper);
+  font-weight: normal;
+}
 .wiki-page-body { line-height: 1.8; font-size: 15px; white-space: pre-wrap; }
 .wiki-page-images {
   display: flex;
@@ -604,6 +612,29 @@ pre { white-space: pre-wrap; line-height: 1.65; margin: 0; }
   color: var(--muted);
 }
 .wiki-page-sources span { margin-right: 12px; }
+.wiki-job-panel {
+  max-width: 800px;
+  margin: 16px auto 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 18px;
+}
+.wiki-job-panel.hidden { display: none; }
+.wiki-job-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+.wiki-job-actions { display: flex; gap: 6px; }
+.wiki-job-detail {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 8px;
+}
 .evidence-list, .job-list, .table {
   display: grid;
   gap: 10px;

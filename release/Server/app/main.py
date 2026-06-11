@@ -339,6 +339,7 @@ def init_db() -> None:
                 content TEXT NOT NULL,
                 sources_json TEXT NOT NULL DEFAULT '[]',
                 images_json TEXT NOT NULL DEFAULT '[]',
+                model_name TEXT NOT NULL DEFAULT '',
                 section_order INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
@@ -2707,29 +2708,57 @@ def get_wiki(project_id: str) -> dict[str, Any]:
     return {"project": project, "pages": pages, "total": len(pages)}
 
 
-@app.post("/wiki/generate/{project_id}")
-def generate_wiki(project_id: str) -> dict[str, Any]:
-    project = one("SELECT * FROM projects WHERE id=?", (project_id,))
-    if not project:
-        raise HTTPException(404, "找不到專案")
-    with db() as conn:
-        conn.execute("DELETE FROM wiki_pages WHERE project_id=?", (project_id,))
-    topics = extract_wiki_topics(project_id)
-    if not topics:
-        return {"message": "專案中沒有足夠內容產生維基", "pages": 0}
-    pages_created = 0
-    for order, topic in enumerate(topics[:20], start=1):
-        evidence = search_evidence(topic, [project_id], top_k=5)
-        evidence_text = "\n".join(f"- {ev['evidence_text'][:300]}（來源：{ev['source_file']}，頁 {ev['page_number']}）" for ev in evidence)
-        if not evidence_text:
-            continue
-        image_hits = rows(
-            "SELECT a.id, a.caption, a.path FROM assets a WHERE a.project_id=? AND (a.caption LIKE ? OR a.ocr_text LIKE ?) LIMIT 3",
-            (project_id, f"%{topic}%", f"%{topic}%"),
-        )
-        images_json = json.dumps([{"id": img["id"], "caption": img["caption"]} for img in image_hits], ensure_ascii=False)
-        sources_json = json.dumps([{"file": ev["source_file"], "page": ev["page_number"], "block": ev["block_id"]} for ev in evidence[:5]], ensure_ascii=False)
-        prompt = f"""根據以下 evidence，為主題「{topic}」撰寫一段維基百科風格的知識條目。
+_WIKI_JOBS: dict[str, dict[str, Any]] = {}
+_WIKI_LOCK = threading.Lock()
+
+
+def wiki_worker(project_id: str, job_id: str) -> None:
+    with _WIKI_LOCK:
+        _WIKI_JOBS[job_id] = {"project_id": project_id, "status": "running", "total": 0, "done": 0, "current": "", "error": None, "stopped": False}
+    try:
+        project = one("SELECT * FROM projects WHERE id=?", (project_id,))
+        if not project:
+            with _WIKI_LOCK:
+                _WIKI_JOBS[job_id]["status"] = "failed"
+                _WIKI_JOBS[job_id]["error"] = "找不到專案"
+            return
+        with db() as conn:
+            conn.execute("DELETE FROM wiki_pages WHERE project_id=?", (project_id,))
+        topics = extract_wiki_topics(project_id)
+        if not topics:
+            with _WIKI_LOCK:
+                _WIKI_JOBS[job_id]["status"] = "done"
+                _WIKI_JOBS[job_id]["total"] = 0
+            return
+        with _WIKI_LOCK:
+            _WIKI_JOBS[job_id]["total"] = len(topics)
+        pages_created = 0
+        for order, topic in enumerate(topics, start=1):
+            while True:
+                with _WIKI_LOCK:
+                    state = _WIKI_JOBS[job_id]
+                    if state["stopped"]:
+                        state["status"] = "stopped"
+                        return
+                    if state["status"] == "paused":
+                        continue
+                break
+            with _WIKI_LOCK:
+                _WIKI_JOBS[job_id]["current"] = topic
+                _WIKI_JOBS[job_id]["done"] = order - 1
+            evidence = search_evidence(topic, [project_id], top_k=5)
+            evidence_text = "\n".join(f"- {ev['evidence_text'][:300]}（來源：{ev['source_file']}，頁 {ev['page_number']}）" for ev in evidence)
+            if not evidence_text:
+                with _WIKI_LOCK:
+                    _WIKI_JOBS[job_id]["done"] = order
+                continue
+            image_hits = rows(
+                "SELECT a.id, a.caption, a.path FROM assets a WHERE a.project_id=? AND (a.caption LIKE ? OR a.ocr_text LIKE ?) LIMIT 3",
+                (project_id, f"%{topic}%", f"%{topic}%"),
+            )
+            images_json = json.dumps([{"id": img["id"], "caption": img["caption"]} for img in image_hits], ensure_ascii=False)
+            sources_json = json.dumps([{"file": ev["source_file"], "page": ev["page_number"], "block": ev["block_id"]} for ev in evidence[:5]], ensure_ascii=False)
+            prompt = f"""根據以下 evidence，為主題「{topic}」撰寫一段維基百科風格的知識條目。
 要求：
 1. 200-400 字
 2. 先給定義，再說明重要概念
@@ -2739,18 +2768,98 @@ def generate_wiki(project_id: str) -> dict[str, Any]:
 Evidence：
 {evidence_text}
 """
-        content = call_llm(prompt)
-        if not content:
-            content = f"## {topic}\n\n{evidence_text}"
-        else:
-            content = f"## {topic}\n\n{content}"
-        with db() as conn:
-            conn.execute(
-                "INSERT INTO wiki_pages VALUES (?,?,?,?,?,?,?,?,?)",
-                (str(uuid.uuid4()), project_id, topic, content, sources_json, images_json, order, now(), now()),
-            )
-        pages_created += 1
-    return {"message": f"維基已產生：{pages_created} 個主題", "pages": pages_created}
+            content = call_llm(prompt)
+            cfg = get_llm_config()
+            model_name = cfg["model"] if content else "rule-extractive"
+            if not content:
+                content = f"## {topic}\n\n{evidence_text}"
+            else:
+                content = f"## {topic}\n\n{content}"
+            with db() as conn:
+                conn.execute(
+                    "INSERT INTO wiki_pages VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    (str(uuid.uuid4()), project_id, topic, content, sources_json, images_json, model_name, order, now(), now()),
+                )
+            pages_created += 1
+            with _WIKI_LOCK:
+                _WIKI_JOBS[job_id]["done"] = order
+        with _WIKI_LOCK:
+            _WIKI_JOBS[job_id]["status"] = "done"
+            _WIKI_JOBS[job_id]["done"] = _WIKI_JOBS[job_id]["total"]
+    except Exception as exc:
+        with _WIKI_LOCK:
+            _WIKI_JOBS[job_id]["status"] = "failed"
+            _WIKI_JOBS[job_id]["error"] = str(exc)[:200]
+
+
+@app.get("/wiki/{project_id}")
+def get_wiki(project_id: str) -> dict[str, Any]:
+    project = one("SELECT * FROM projects WHERE id=?", (project_id,))
+    if not project:
+        raise HTTPException(404, "找不到專案")
+    pages = rows("SELECT * FROM wiki_pages WHERE project_id=? ORDER BY section_order, created_at", (project_id,))
+    return {"project": project, "pages": pages, "total": len(pages)}
+
+
+@app.post("/wiki/generate/{project_id}")
+def generate_wiki(project_id: str) -> dict[str, Any]:
+    project = one("SELECT * FROM projects WHERE id=?", (project_id,))
+    if not project:
+        raise HTTPException(404, "找不到專案")
+    with _WIKI_LOCK:
+        for jid, state in _WIKI_JOBS.items():
+            if state["project_id"] == project_id and state["status"] in ("running", "paused"):
+                return {"message": "此專案已有維基產生工作正在執行", "job_id": jid}
+    job_id = str(uuid.uuid4())
+    thread = threading.Thread(target=wiki_worker, args=(project_id, job_id), daemon=True)
+    thread.start()
+    return {"message": "維基產生已開始", "job_id": job_id}
+
+
+@app.get("/wiki/job/{job_id}")
+def wiki_job_status(job_id: str) -> dict[str, Any]:
+    with _WIKI_LOCK:
+        state = _WIKI_JOBS.get(job_id)
+    if not state:
+        raise HTTPException(404, "找不到維基工作")
+    return state
+
+
+@app.post("/wiki/job/{job_id}/pause")
+def wiki_job_pause(job_id: str) -> dict[str, str]:
+    with _WIKI_LOCK:
+        state = _WIKI_JOBS.get(job_id)
+        if not state or state["status"] != "running":
+            return {"message": "工作不在執行中"}
+        state["status"] = "paused"
+    return {"message": "已暫停"}
+
+
+@app.post("/wiki/job/{job_id}/resume")
+def wiki_job_resume(job_id: str) -> dict[str, str]:
+    with _WIKI_LOCK:
+        state = _WIKI_JOBS.get(job_id)
+        if not state or state["status"] != "paused":
+            return {"message": "工作未暫停"}
+        state["status"] = "running"
+    return {"message": "已繼續"}
+
+
+@app.post("/wiki/job/{job_id}/stop")
+def wiki_job_stop(job_id: str) -> dict[str, str]:
+    with _WIKI_LOCK:
+        state = _WIKI_JOBS.get(job_id)
+        if not state:
+            return {"message": "找不到工作"}
+        state["stopped"] = True
+    return {"message": "已停止"}
+
+
+@app.delete("/wiki/{project_id}")
+def delete_wiki(project_id: str) -> dict[str, str]:
+    with db() as conn:
+        conn.execute("DELETE FROM wiki_pages WHERE project_id=?", (project_id,))
+    return {"message": "維基已刪除"}
 
 
 @app.post("/admin/rebuild")

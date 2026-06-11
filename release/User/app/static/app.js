@@ -1088,10 +1088,11 @@ async function loadWiki() {
         try { images = JSON.parse(page.images_json || "[]"); } catch (_) { images = []; }
         let sources = "";
         try { sources = JSON.parse(page.sources_json || "[]"); } catch (_) { sources = []; }
+        const modelTag = page.model_name ? `<span class="wiki-model-tag">${escapeHtml(page.model_name)}</span>` : "";
         const imagesHtml = images.length ? `<div class="wiki-page-images">${images.map((img) => `<img src="/api/assets/${escapeHtml(img.id)}" alt="${escapeHtml(img.caption)}" loading="lazy" />`).join("")}</div>` : "";
         const sourcesHtml = sources.length ? `<div class="wiki-page-sources">${sources.map((s) => `<span>📄 ${escapeHtml(s.file)} 頁 ${s.page}</span>`).join("")}</div>` : "";
         return `<div class="wiki-page">
-          <h2>${escapeHtml(page.title)}</h2>
+          <h2>${escapeHtml(page.title)} ${modelTag}</h2>
           <div class="wiki-page-body">${escapeHtml(page.content).replace(/^## .+$/m, "").trim()}</div>
           ${imagesHtml}
           ${sourcesHtml}
@@ -1105,21 +1106,87 @@ async function loadWiki() {
   }
 }
 
+let wikiPollTimer = null;
+let wikiCurrentJobId = null;
+
+function stopWikiPoll() { if (wikiPollTimer) { clearInterval(wikiPollTimer); wikiPollTimer = null; } }
+
+async function pollWikiJob(jobId) {
+  wikiCurrentJobId = jobId;
+  stopWikiPoll();
+  $("#wikiJobPanel").classList.remove("hidden");
+  wikiPollTimer = setInterval(async () => {
+    try {
+      const s = await api(`/api/wiki/job/${jobId}`);
+      const pct = s.total > 0 ? Math.round((s.done / s.total) * 100) : 0;
+      $("#wikiProgressBar").style.width = `${pct}%`;
+      $("#wikiJobProgress").textContent = `${s.done} / ${s.total}`;
+      $("#wikiJobCurrent").textContent = s.current ? `目前：${s.current}` : "";
+      if (s.status === "running") {
+        $("#wikiJobStatus").textContent = "處理中...";
+        $("#wikiPauseBtn").classList.remove("hidden");
+        $("#wikiResumeBtn").classList.add("hidden");
+      } else if (s.status === "paused") {
+        $("#wikiJobStatus").textContent = "已暫停";
+        $("#wikiPauseBtn").classList.add("hidden");
+        $("#wikiResumeBtn").classList.remove("hidden");
+      } else {
+        stopWikiPoll();
+        const statusText = { done: "✓ 完成", failed: "✗ 失敗", stopped: "已停止" }[s.status] || s.status;
+        $("#wikiJobStatus").textContent = statusText;
+        $("#wikiPauseBtn").classList.add("hidden");
+        $("#wikiResumeBtn").classList.add("hidden");
+        if (s.error) $("#wikiMsg").textContent = s.error;
+        loadWiki();
+      }
+    } catch (_) { stopWikiPoll(); }
+  }, 2000);
+}
+
 $("#wikiRefreshBtn").addEventListener("click", () => { loadWikiProjects(); loadWiki(); });
 
 $("#wikiGenerateBtn").addEventListener("click", async () => {
   const projectId = $("#wikiProjectSelect").value;
   if (!projectId) { $("#wikiMsg").textContent = "請先選擇專案"; return; }
-  $("#wikiMsg").textContent = "正在產生維基，請稍候（可能需要數分鐘）...";
-  $("#wikiGenerateBtn").disabled = true;
+  $("#wikiMsg").textContent = "";
   try {
     const data = await api(`/api/wiki/generate/${projectId}`, { method: "POST", body: "{}" });
-    $("#wikiMsg").textContent = `✓ ${data.message}`;
-    loadWiki();
+    if (data.job_id) {
+      pollWikiJob(data.job_id);
+    } else {
+      $("#wikiMsg").textContent = data.message || "無法開始";
+    }
   } catch (err) {
     $("#wikiMsg").textContent = "✗ 產生失敗：" + err.message;
   }
-  $("#wikiGenerateBtn").disabled = false;
+});
+
+$("#wikiPauseBtn").addEventListener("click", async () => {
+  if (!wikiCurrentJobId) return;
+  try { await api(`/api/wiki/job/${wikiCurrentJobId}/pause`, { method: "POST", body: "{}" }); } catch (_) {}
+});
+
+$("#wikiResumeBtn").addEventListener("click", async () => {
+  if (!wikiCurrentJobId) return;
+  try { await api(`/api/wiki/job/${wikiCurrentJobId}/resume`, { method: "POST", body: "{}" }); } catch (_) {}
+});
+
+$("#wikiStopBtn").addEventListener("click", async () => {
+  if (!wikiCurrentJobId) return;
+  try { await api(`/api/wiki/job/${wikiCurrentJobId}/stop`, { method: "POST", body: "{}" }); } catch (_) {}
+});
+
+$("#wikiDeleteBtn")?.addEventListener("click", async () => {
+  const projectId = $("#wikiProjectSelect").value;
+  if (!projectId) return;
+  if (!confirm("確定要刪除此專案的維基嗎？")) return;
+  try {
+    await api(`/api/wiki/${projectId}`, { method: "DELETE" });
+    $("#wikiMsg").textContent = "✓ 維基已刪除";
+    loadWiki();
+  } catch (err) {
+    $("#wikiMsg").textContent = "刪除失敗：" + err.message;
+  }
 });
 
 $("#backupBtn").addEventListener("click", async () => {

@@ -142,7 +142,23 @@
         <div class="wiki-controls">
           <select id="wikiProjectSelect"></select>
           <button id="wikiGenerateBtn" type="button">產生/更新維基</button>
+          <button id="wikiDeleteBtn" type="button" class="ghost" style="color:var(--red)">刪除維基</button>
           <button id="wikiRefreshBtn" type="button" class="ghost">重新整理</button>
+        </div>
+        <div id="wikiJobPanel" class="wiki-job-panel hidden">
+          <div class="wiki-job-header">
+            <span id="wikiJobStatus">處理中...</span>
+            <div class="wiki-job-actions">
+              <button id="wikiPauseBtn" type="button" class="ghost small-btn">暫停</button>
+              <button id="wikiResumeBtn" type="button" class="ghost small-btn hidden">繼續</button>
+              <button id="wikiStopBtn" type="button" class="danger small-btn">停止</button>
+            </div>
+          </div>
+          <div class="progress-bar"><span id="wikiProgressBar"></span></div>
+          <div class="wiki-job-detail">
+            <span id="wikiJobProgress">0 / 0</span>
+            <span id="wikiJobCurrent"></span>
+          </div>
         </div>
         <p id="wikiMsg" class="warn"></p>
         <div id="wikiContent" class="wiki-content">

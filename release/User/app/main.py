@@ -274,6 +274,31 @@ async def generate_wiki(req: Request, project_id: str) -> Any:
     return await proxy_request("POST", f"/wiki/generate/{project_id}", token=extract_token(req))
 
 
+@app.get("/api/wiki/job/{job_id}")
+async def wiki_job_status(req: Request, job_id: str) -> Any:
+    return await proxy_request("GET", f"/wiki/job/{job_id}", token=extract_token(req))
+
+
+@app.post("/api/wiki/job/{job_id}/pause")
+async def wiki_job_pause(req: Request, job_id: str) -> Any:
+    return await proxy_request("POST", f"/wiki/job/{job_id}/pause", token=extract_token(req))
+
+
+@app.post("/api/wiki/job/{job_id}/resume")
+async def wiki_job_resume(req: Request, job_id: str) -> Any:
+    return await proxy_request("POST", f"/wiki/job/{job_id}/resume", token=extract_token(req))
+
+
+@app.post("/api/wiki/job/{job_id}/stop")
+async def wiki_job_stop(req: Request, job_id: str) -> Any:
+    return await proxy_request("POST", f"/wiki/job/{job_id}/stop", token=extract_token(req))
+
+
+@app.delete("/api/wiki/{project_id}")
+async def delete_wiki(req: Request, project_id: str) -> Any:
+    return await proxy_request("DELETE", f"/wiki/{project_id}", token=extract_token(req))
+
+
 @app.post("/api/admin/rebuild")
 async def rebuild(req: Request) -> Any:
     return await proxy_request("POST", "/admin/rebuild", token=extract_token(req))
