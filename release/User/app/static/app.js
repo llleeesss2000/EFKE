@@ -610,15 +610,12 @@ $("#logoutBtn").addEventListener("click", async () => {
   $("#login").classList.remove("hidden");
 });
 
-$("#answerMode").addEventListener("click", () => {
-  state.mode = "answer";
-  $("#answerMode").classList.add("active");
-  $("#researchMode").classList.remove("active");
-});
-$("#researchMode").addEventListener("click", () => {
-  state.mode = "research";
-  $("#researchMode").classList.add("active");
-  $("#answerMode").classList.remove("active");
+document.querySelectorAll(".pill[data-mode]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    state.mode = btn.dataset.mode;
+    document.querySelectorAll(".pill[data-mode]").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+  });
 });
 
 $("#projectForm").addEventListener("submit", async (event) => {
@@ -919,11 +916,17 @@ $("#queryForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const selected = Array.from($("#projectFilter").selectedOptions).map((o) => o.value);
   const query = new FormData(event.target).get("query");
+  if (!query.trim()) return;
   const body = { query, mode: state.mode, project_ids: selected.length ? selected : null, top_k: 10, user: state.user };
+  const modeLabel = state.mode === "research" ? "研究模式" : "回答模式";
+  $("#answerModeTag").textContent = modeLabel;
+  $("#answerText").textContent = "查詢中...";
+  $("#queryResult").classList.remove("hidden");
   try {
     const result = await api("/api/rag/query", { method: "POST", body: JSON.stringify(body) });
     $("#answerText").textContent = result.answer;
     renderEvidence(result.evidence);
+    $("#evidenceCount").textContent = `(${result.evidence.length} 則)`;
   } catch (err) {
     $("#answerText").textContent = "查詢失敗：" + err.message;
   }

@@ -93,27 +93,40 @@
       </header>
 
       <section id="query" class="view">
-        <div class="mode-line">
-          <button id="answerMode" class="mode active">回答模式<span>快速整理結論，仍會附上來源。適合一般問題。</span></button>
-          <button id="researchMode" class="mode">研究模式<span>先列出證據，再比較整理，最後給結論與不確定性。適合專業查詢。</span></button>
-        </div>
-        <div class="query-grid">
-          <form id="queryForm" class="query-box">
-            <textarea name="query" placeholder="輸入問題。找不到足夠證據時，系統會明確回答資料庫中未找到足夠證據。"></textarea>
-            <div class="inline">
-              <select id="projectFilter" multiple></select>
-              <button type="submit">查詢 Evidence</button>
-            </div>
+        <div class="query-hero">
+          <h2 class="query-hero-title">提出你的問題</h2>
+          <p class="query-hero-sub">找不到足夠證據時，系統會明確回答「資料庫中未找到足夠證據」</p>
+          <div class="query-mode-pills">
+            <button id="answerMode" class="pill active" data-mode="answer">
+              <span class="pill-icon">💬</span> 回答模式
+              <span class="pill-desc">快速整理結論，附上來源</span>
+            </button>
+            <button id="researchMode" class="pill" data-mode="research">
+              <span class="pill-icon">🔬</span> 研究模式
+              <span class="pill-desc">先列證據，再比較，最後給結論</span>
+            </button>
+          </div>
+          <form id="queryForm" class="query-search-bar">
+            <textarea name="query" placeholder="輸入你的問題..." rows="1"></textarea>
+            <button type="submit" class="query-submit">查詢</button>
           </form>
-          <section class="answer-pane">
-            <h3>回答</h3>
-            <pre id="answerText">尚未查詢。</pre>
-          </section>
+          <div class="query-filters">
+            <select id="projectFilter" multiple></select>
+          </div>
         </div>
-        <section>
-          <h3>Evidence Package</h3>
-          <div id="evidenceList" class="evidence-list"></div>
-        </section>
+        <div id="queryResult" class="query-result hidden">
+          <div class="answer-section">
+            <div class="answer-header">
+              <h3>回答</h3>
+              <span id="answerModeTag" class="answer-mode-tag"></span>
+            </div>
+            <pre id="answerText" class="answer-body">尚未查詢。</pre>
+          </div>
+          <div class="evidence-section">
+            <h3>Evidence Package <span id="evidenceCount" class="evidence-count"></span></h3>
+            <div id="evidenceList" class="evidence-list"></div>
+          </div>
+        </div>
       </section>
 
       <section id="projects" class="view hidden">
