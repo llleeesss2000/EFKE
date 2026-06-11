@@ -46,9 +46,15 @@ const configMeta = {
   server_api_url: ["Server API 位址", "User 端會把登入、專案、上傳、查詢都送到這個 Server。請在 .env 的 SERVER_API_URL 修改。"],
   quantized_data_location: ["量化資料位置", "server 表示衍生資料保存在 Server；user 表示可攜式資料保存在這台 User。"],
   user_data_dir: ["User 本地資料夾", "QUANTIZED_DATA_LOCATION=user 時使用，用於 metadata cache 或可攜式資料。"],
-  llm_provider: ["LLM 供應者", "目前預設 Ollama。這只是連線設定，回答仍必須受 Evidence 限制。"],
-  llm_base_url: ["LLM API 位址", "Ollama OpenAI-compatible API 位址，請在 .env 的 LLM_BASE_URL 修改。"],
-  llm_model: ["LLM 模型名稱", "Server 或 User 設定要呼叫的模型，例如 qwen3-coder-next:q8_0。"],
+};
+
+const llmPresets = {
+  ollama: { url: "http://127.0.0.1:11434", key: "", placeholder: "Ollama 不需要 API Key" },
+  openai: { url: "https://api.openai.com/v1", key: "", placeholder: "sk-..." },
+  anthropic: { url: "https://api.anthropic.com", key: "", placeholder: "sk-ant-..." },
+  google: { url: "https://generativelanguage.googleapis.com/v1beta", key: "", placeholder: "AIza..." },
+  deepseek: { url: "https://api.deepseek.com/v1", key: "", placeholder: "sk-..." },
+  "openai-compat": { url: "", key: "", placeholder: "輸入你的 API Key" },
 };
 
 const api = async (path, options = {}) => {
@@ -873,6 +879,78 @@ $("#userForm").addEventListener("submit", async (event) => {
     refresh();
   } catch (err) {
     $("#userMsg").textContent = "新增帳號失敗：" + err.message;
+  }
+});
+
+$("#llmProvider").addEventListener("change", () => {
+  const preset = llmPresets[$("#llmProvider").value] || {};
+  if (preset.url) $("#llmBaseUrl").value = preset.url;
+  if (preset.key !== undefined) $("#llmApiKey").placeholder = preset.placeholder || "";
+});
+
+$("#llmTestBtn").addEventListener("click", async () => {
+  const body = {
+    provider: $("#llmProvider").value,
+    base_url: $("#llmBaseUrl").value,
+    api_key: $("#llmApiKey").value,
+    model: "",
+  };
+  if (!body.base_url) { $("#llmTestMsg").textContent = "請輸入 API 位址"; return; }
+  $("#llmTestMsg").textContent = "正在測試連線...";
+  try {
+    const data = await api("/api/llm/test", { method: "POST", body: JSON.stringify(body) });
+    if (data.ok) {
+      const select = $("#llmModelSelect");
+      select.innerHTML = "";
+      if (data.models && data.models.length > 0) {
+        data.models.forEach((m) => { const opt = document.createElement("option"); opt.value = m; opt.textContent = m; select.appendChild(opt); });
+        $("#llmTestMsg").textContent = `✓ 連線成功！找到 ${data.models.length} 個模型，請選擇一個。`;
+      } else {
+        select.innerHTML = '<option value="">未找到模型</option>';
+        $("#llmTestMsg").textContent = "✓ 連線成功，但未找到可用模型。";
+      }
+    } else {
+      $("#llmTestMsg").textContent = "✗ " + data.error;
+    }
+  } catch (err) {
+    $("#llmTestMsg").textContent = "✗ 測試失敗：" + err.message;
+  }
+});
+
+$("#llmQueryTestBtn").addEventListener("click", async () => {
+  const model = $("#llmModelManual").value || $("#llmModelSelect").value;
+  if (!model) { $("#llmTestMsg").textContent = "請先選擇或輸入模型名稱"; return; }
+  const body = {
+    provider: $("#llmProvider").value,
+    base_url: $("#llmBaseUrl").value,
+    api_key: $("#llmApiKey").value,
+    model: model,
+  };
+  $("#llmTestMsg").textContent = "正在測試問答...";
+  try {
+    const data = await api("/api/llm/test-query", { method: "POST", body: JSON.stringify(body) });
+    if (data.ok) {
+      $("#llmTestMsg").textContent = `✓ 模型回答：${data.answer}`;
+    } else {
+      $("#llmTestMsg").textContent = "✗ " + data.error;
+    }
+  } catch (err) {
+    $("#llmTestMsg").textContent = "✗ 問答失敗：" + err.message;
+  }
+});
+
+$("#llmForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const model = $("#llmModelManual").value || $("#llmModelSelect").value;
+  if (!model) { $("#llmSaveMsg").textContent = "請選擇或輸入模型名稱"; return; }
+  try {
+    await api("/api/settings", { method: "POST", body: JSON.stringify({ key: "llm_provider", value: $("#llmProvider").value }) });
+    await api("/api/settings", { method: "POST", body: JSON.stringify({ key: "llm_base_url", value: $("#llmBaseUrl").value }) });
+    await api("/api/settings", { method: "POST", body: JSON.stringify({ key: "llm_api_key", value: $("#llmApiKey").value }) });
+    await api("/api/settings", { method: "POST", body: JSON.stringify({ key: "llm_model", value: model }) });
+    $("#llmSaveMsg").textContent = "✓ LLM 設定已保存";
+  } catch (err) {
+    $("#llmSaveMsg").textContent = "儲存失敗：" + err.message;
   }
 });
 

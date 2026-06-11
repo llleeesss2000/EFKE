@@ -731,6 +731,22 @@ dd strong {
   padding: 18px;
 }
 
+.llm-form {
+  display: grid;
+  gap: 12px;
+}
+.llm-form label {
+  display: grid;
+  gap: 4px;
+}
+.llm-actions {
+  display: flex;
+  gap: 8px;
+}
+.llm-actions button {
+  flex: 1;
+}
+
 @media (max-width: 860px) {
   .workspace { grid-template-columns: 1fr; }
   .rail { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); }

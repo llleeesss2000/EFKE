@@ -2528,6 +2528,66 @@ def set_setting(body: SettingBody) -> dict[str, str]:
     return {"message": "設定已保存"}
 
 
+class LLMTestBody(BaseModel):
+    provider: str = "ollama"
+    base_url: str = ""
+    api_key: str = ""
+    model: str = ""
+
+
+@app.post("/llm/test")
+def test_llm_connection(body: LLMTestBody) -> dict[str, Any]:
+    base_url = body.base_url.rstrip("/")
+    if not base_url:
+        return {"ok": False, "error": "請輸入 LLM API 位址"}
+    try:
+        if body.provider == "ollama":
+            resp = httpx.get(f"{base_url}/api/tags", timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+            models = [m["name"] for m in data.get("models", [])]
+            return {"ok": True, "models": models, "provider": "ollama"}
+        else:
+            headers = {"Authorization": f"Bearer {body.api_key}"} if body.api_key else {}
+            resp = httpx.get(f"{base_url}/v1/models", headers=headers, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+            models = [m["id"] for m in data.get("data", [])]
+            return {"ok": True, "models": models, "provider": body.provider}
+    except httpx.ConnectError:
+        return {"ok": False, "error": f"無法連線到 {base_url}，請確認位址正確且服務已啟動"}
+    except httpx.HTTPStatusError as exc:
+        return {"ok": False, "error": f"HTTP {exc.response.status_code}：{exc.response.text[:200]}"}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+@app.post("/llm/test-query")
+def test_llm_query(body: LLMTestBody) -> dict[str, Any]:
+    base_url = body.base_url.rstrip("/")
+    model = body.model
+    if not base_url or not model:
+        return {"ok": False, "error": "請輸入 API 位址並選擇模型"}
+    try:
+        if body.provider == "ollama":
+            url = f"{base_url}/api/generate"
+            payload = {"model": model, "prompt": "請回答：1+1等於多少？只回答數字。", "stream": False}
+        else:
+            url = f"{base_url}/v1/chat/completions"
+            headers = {"Authorization": f"Bearer {body.api_key}"} if body.api_key else {}
+            payload = {"model": model, "messages": [{"role": "user", "content": "請回答：1+1等於多少？只回答數字。"}], "max_tokens": 50}
+        resp = httpx.post(url, json=payload, headers=headers if body.provider != "ollama" else {}, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        if body.provider == "ollama":
+            answer = data.get("response", "").strip()
+        else:
+            answer = data["choices"][0]["message"]["content"].strip()
+        return {"ok": True, "answer": answer, "model": model}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:200]}
+
+
 @app.post("/admin/rebuild")
 def rebuild() -> dict[str, str]:
     created_jobs: list[str] = []
