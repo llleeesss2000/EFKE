@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Evidence-First Knowledge Engine</title>
+  <link rel="stylesheet" href="/static/styles.css?v=review-tabs-20260604-0105" />
+</head>
+<body>
+  <main id="setup" class="login-shell hidden">
+    <section class="login-panel">
+      <p class="kicker">首次設定</p>
+      <h1>連線設定</h1>
+      <form id="setupForm">
+        <label>Server IP 位址<input name="server_url" placeholder="http://192.168.1.100:8000" required /></label>
+        <label>LLM 位址（選填）<input name="llm_url" placeholder="http://192.168.1.100:11434/v1" /></label>
+        <label>LLM 模型名稱（選填）<input name="llm_model" placeholder="qwen3-coder-next:q8_0" /></label>
+        <div class="inline">
+          <button type="button" id="testServerBtn">測試連線</button>
+          <button type="submit">儲存並繼續</button>
+        </div>
+      </form>
+      <p id="setupMsg" class="warn"></p>
+      <p class="small">把 Server 端啟動後顯示的 IP 位址貼上即可。</p>
+    </section>
+  </main>
+
+  <main id="login" class="login-shell">
+    <section class="login-panel">
+      <p class="kicker">Evidence First. Everything Traceable. Everything Rebuildable.</p>
+      <h1>個人知識引擎</h1>
+      <form id="loginForm">
+        <label>帳號<input name="username" value="admin" autocomplete="username" /></label>
+        <label>密碼<input name="password" type="password" value="12345" autocomplete="current-password" /></label>
+        <button type="submit">登入</button>
+      </form>
+      <p id="loginMsg" class="warn"></p>
+    </section>
+  </main>
+
+  <main id="app" class="workspace hidden">
+    <aside class="rail">
+      <div>
+        <p class="small">Evidence-First</p>
+        <h2>知識工作台</h2>
+      </div>
+      <nav>
+        <button data-view="query" class="active">查詢</button>
+        <button data-view="projects">專案</button>
+        <button data-view="review">校閱</button>
+        <button data-view="upload">上傳</button>
+        <button data-view="files">檔案</button>
+        <button data-view="jobs">進度</button>
+        <button data-view="settings">設定</button>
+        <button data-view="accounts">帳號</button>
+      </nav>
+      <p id="serverState" class="server-state">Server 檢查中</p>
+      <p id="clientVersion" class="client-version">UI 版本檢查中</p>
+      <button id="logoutBtn" class="ghost" style="margin-top:auto;border-top:1px solid var(--line);padding-top:12px;">登出</button>
+    </aside>
+
+    <section class="content">
+      <header class="topbar">
+        <div>
+          <p class="small">資料有證據才回答</p>
+          <h1 id="viewTitle">查詢</h1>
+        </div>
+        <button id="refreshBtn" class="ghost">重新整理</button>
+      </header>
+
+      <section id="query" class="view">
+        <div class="mode-line">
+          <button id="answerMode" class="mode active">回答模式<span>快速整理結論，仍會附上來源。適合一般問題。</span></button>
+          <button id="researchMode" class="mode">研究模式<span>先列出證據，再比較整理，最後給結論與不確定性。適合專業查詢。</span></button>
+        </div>
+        <div class="query-grid">
+          <form id="queryForm" class="query-box">
+            <textarea name="query" placeholder="輸入問題。找不到足夠證據時，系統會明確回答資料庫中未找到足夠證據。"></textarea>
+            <div class="inline">
+              <select id="projectFilter" multiple></select>
+              <button type="submit">查詢 Evidence</button>
+            </div>
+          </form>
+          <section class="answer-pane">
+            <h3>回答</h3>
+            <pre id="answerText">尚未查詢。</pre>
+          </section>
+        </div>
+        <section>
+          <h3>Evidence Package</h3>
+          <div id="evidenceList" class="evidence-list"></div>
+        </section>
+      </section>
+
+      <section id="projects" class="view hidden">
+        <form id="projectForm" class="toolbar">
+          <input name="name" placeholder="專案名稱，例如：化工" required />
+          <select name="template">
+            <option>化工</option><option>程式設計</option><option>法律</option><option>房地產</option><option>投資</option><option>自訂</option>
+          </select>
+          <select name="source_rank">
+            <option value="A">A 級：教科書、原廠文件、技術手冊</option>
+            <option value="B">B 級：論文、標準文件</option>
+            <option value="C">C 級：技術文章、部落格</option>
+            <option value="D">D 級：論壇、AI 生成內容</option>
+          </select>
+          <button type="submit">建立專案</button>
+        </form>
+        <p id="projectMsg" class="warn"></p>
+        <div id="projectList" class="table"></div>
+      </section>
+
+      <section id="review" class="view hidden">
+        <div class="review-board">
+          <div class="review-head">
+            <div>
+              <h3>書籍校閱</h3>
+              <p class="setting-note">點選專案後打開書籍。PDF 會顯示原始頁面與 OCR 疊圖；EPUB 會進入全文閱讀。</p>
+            </div>
+            <div class="review-tools">
+              <input id="reviewSearchInput" placeholder="搜尋書名" />
+            </div>
+          </div>
+          <div id="reviewProjectTabs" class="review-project-tabs"></div>
+          <div id="reviewBookList" class="review-book-list"></div>
+        </div>
+      </section>
+
+      <section id="reader" class="view hidden reader-view">
+        <div class="reader-toolbar">
+          <button id="readerBackBtn" class="ghost" type="button">返回校閱</button>
+          <div>
+            <strong id="readerTitle">尚未選擇書籍</strong>
+            <div id="readerMeta" class="meta"></div>
+          </div>
+          <div class="reader-controls">
+            <button id="readerPrevBtn" class="ghost small-btn" type="button">上一頁</button>
+            <input id="readerPageInput" type="number" min="1" value="1" />
+            <span id="readerPageTotal">/ 0</span>
+            <button id="readerNextBtn" class="ghost small-btn" type="button">下一頁</button>
+          </div>
+          <div class="reader-mode">
+            <button class="small-btn active" data-reader-mode="overlay" type="button">疊圖</button>
+            <button class="small-btn ghost" data-reader-mode="original" type="button">原始</button>
+            <button class="small-btn ghost" data-reader-mode="rebuild" type="button">重建</button>
+            <button class="small-btn ghost" data-reader-mode="text" type="button">閱讀</button>
+          </div>
+        </div>
+        <div class="reader-issue-strip">
+          <button class="small-btn active" data-page-filter="all" type="button">全部頁</button>
+          <button class="small-btn ghost" data-page-filter="issues" type="button">只看問題頁</button>
+          <div id="readerIssueSummary" class="metric-line"></div>
+        </div>
+        <div class="reader-grid">
+          <aside class="reader-pages">
+            <strong>頁面檢查</strong>
+            <div id="readerPageList"></div>
+          </aside>
+          <section class="reader-stage">
+            <div id="readerCanvasWrap" class="reader-canvas-wrap"></div>
+          </section>
+          <aside class="reader-side">
+            <section>
+              <h3>本頁 OCR</h3>
+              <div id="readerPageStats" class="metric-line"></div>
+              <div id="readerPageText" class="reader-text"></div>
+            </section>
+            <section>
+              <h3>區塊</h3>
+              <div id="readerBlocks" class="reader-blocks"></div>
+            </section>
+            <section>
+              <h3>圖片 / 資產</h3>
+              <div id="readerAssets" class="reader-assets"></div>
+            </section>
+          </aside>
+        </div>
+      </section>
+
+      <section id="upload" class="view hidden">
+        <form id="uploadForm" class="upload-box">
+          <select id="uploadProject" name="project_id" required></select>
+          <select name="duplicate_strategy">
+            <option value="skip">重複檔案：跳過</option>
+            <option value="new_version">重複檔案：建立新版本</option>
+          </select>
+          <input type="file" name="file" accept=".pdf,.txt,.jpg,.jpeg,.png,.epub" required />
+          <button type="submit">上傳並建立工作</button>
+        </form>
+        <form id="folderForm" class="folder-box">
+          <select id="folderProject" name="project_id" required></select>
+          <select id="folderDuplicateStrategy" name="duplicate_strategy">
+            <option value="skip">重複檔案：跳過</option>
+            <option value="new_version">重複檔案：建立新版本</option>
+          </select>
+          <div class="drop-zone" id="dropZone">
+            <input id="folderInput" type="file" webkitdirectory directory multiple />
+            <input id="batchFileInput" type="file" accept=".pdf,.txt,.jpg,.jpeg,.png,.epub" multiple />
+            <span>拖曳資料夾或檔案到這裡</span>
+            <small>也可以選擇資料夾或多個檔案；只會上傳 PDF、TXT、JPG、JPEG、PNG、EPUB。</small>
+            <div class="drop-actions">
+              <button id="chooseFolderBtn" type="button" class="ghost">選擇資料夾</button>
+              <button id="chooseFilesBtn" type="button" class="ghost">選擇檔案</button>
+            </div>
+          </div>
+          <button id="folderSubmitBtn" type="submit">開始上傳</button>
+        </form>
+        <div id="folderProgress" class="upload-progress">
+          <div class="progress-head"><span id="folderProgressText">尚未選擇檔案。</span><strong id="folderProgressCount">0 / 0</strong></div>
+          <div class="progress-bar"><span id="folderProgressBar"></span></div>
+          <div id="folderProgressDetail" class="progress-detail"></div>
+        </div>
+        <p id="uploadMsg" class="warn"></p>
+      </section>
+
+      <section id="jobs" class="view hidden">
+        <p class="setting-note">工作進度會顯示目前階段、總階段完成數與每個處理階段狀態。上傳遇到「重複檔案：跳過」時不會建立新工作。</p>
+        <div id="jobList" class="job-list"></div>
+      </section>
+
+      <section id="files" class="view hidden">
+        <p class="warn">刪除檔案/書籍會移除該檔案的原始檔、metadata、工作紀錄、區塊、chunk、assets 與衍生資料。這不會刪除同專案其他書。</p>
+        <div class="file-tools">
+          <select id="fileProjectFilter"></select>
+          <input id="fileSearchInput" placeholder="搜尋書名或檔名" />
+          <strong id="fileResultCount">0 本</strong>
+        </div>
+        <div id="fileList" class="table"></div>
+      </section>
+
+      <section id="settings" class="view hidden">
+        <div class="settings-grid">
+          <section>
+            <h3>連線設定</h3>
+            <p class="setting-note">英文 key 是程式讀取的 .env 變數，中文說明描述用途與修改位置。</p>
+            <dl id="configList"></dl>
+          </section>
+          <section>
+            <h3>系統操作</h3>
+            <button id="backupBtn">建立 Server 備份</button>
+            <button id="rebuildBtn" class="ghost">重建索引</button>
+            <p id="adminMsg" class="warn"></p>
+          </section>
+        </div>
+      </section>
+
+      <section id="accounts" class="view hidden">
+        <p class="warn">首次登入使用 admin / 12345 時，請在正式使用前修改密碼。角色支援 admin、user、readonly。</p>
+        <form id="changePasswordForm" class="account-form">
+          <h3>修改密碼</h3>
+          <input name="old_password" type="password" placeholder="目前密碼" required />
+          <input name="new_password" type="password" placeholder="新密碼（至少 4 個字元）" required />
+          <button type="submit">修改密碼</button>
+        </form>
+        <p id="changePasswordMsg" class="warn"></p>
+        <hr />
+        <form id="userForm" class="account-form">
+          <input name="username" placeholder="新帳號" required />
+          <input name="password" type="password" placeholder="新密碼" required />
+          <select name="role">
+            <option value="user">user：一般使用者</option>
+            <option value="readonly">readonly：唯讀使用者</option>
+            <option value="admin">admin：管理者</option>
+          </select>
+          <button type="submit">新增帳號</button>
+        </form>
+        <p id="userMsg" class="warn"></p>
+        <div class="role-help">
+          <div><strong>admin</strong><span>管理者：所有功能，包含備份、重建、刪除與帳號管理。</span></div>
+          <div><strong>user</strong><span>一般使用者：上傳、查詢、建立專案。</span></div>
+          <div><strong>readonly</strong><span>唯讀使用者：只能查詢與查看 Evidence。</span></div>
+        </div>
+        <div id="userList" class="table"></div>
+      </section>
+    </section>
+  </main>
+  <script src="/static/app.js?v=review-tabs-20260604-0105"></script>
+</body>
+</html>

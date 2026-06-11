@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+.venv.broken*/
+
+# Runtime data
+*.pid
+logs/
+server_data/
+user_data/
+
+# Environment files (contain secrets)
+.env
+
+# Archives (太大不適合 git)
+*.zip
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Agent config
+AGENTS.md
+
+# Playwright
+.playwright-mcp/
+exports/
