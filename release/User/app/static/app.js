@@ -54,6 +54,7 @@ const llmPresets = {
   anthropic: { url: "https://api.anthropic.com", key: "", placeholder: "sk-ant-..." },
   google: { url: "https://generativelanguage.googleapis.com/v1beta", key: "", placeholder: "AIza..." },
   deepseek: { url: "https://api.deepseek.com/v1", key: "", placeholder: "sk-..." },
+  nvidia: { url: "https://integrate.api.nvidia.com/v1", key: "", placeholder: "nvapi-..." },
   "openai-compat": { url: "", key: "", placeholder: "輸入你的 API Key" },
 };
 

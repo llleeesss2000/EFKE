@@ -27,6 +27,7 @@
             <option value="anthropic">Anthropic (Claude)</option>
             <option value="google">Google (Gemini)</option>
             <option value="deepseek">DeepSeek</option>
+            <option value="nvidia">NVIDIA NIM</option>
             <option value="openai-compat">其他 OpenAI 相容 API</option>
           </select>
         </label>
@@ -328,12 +329,13 @@
                   <option value="openai">OpenAI</option>
                   <option value="anthropic">Anthropic (Claude)</option>
                   <option value="google">Google (Gemini)</option>
-                  <option value="deepseek">DeepSeek</option>
-                  <option value="openai-compat">其他 OpenAI 相容 API</option>
-                </select>
-              </label>
-              <label>API 位址
-                <input id="llmBaseUrl" name="base_url" placeholder="http://127.0.0.1:11434" />
+            <option value="deepseek">DeepSeek</option>
+            <option value="nvidia">NVIDIA NIM</option>
+            <option value="openai-compat">其他 OpenAI 相容 API</option>
+          </select>
+        </label>
+        <label>API 位址
+          <input id="llmBaseUrl" name="base_url" placeholder="http://127.0.0.1:11434" />
               </label>
               <label>API Key（Ollama 可留空）
                 <input id="llmApiKey" name="api_key" type="password" placeholder="sk-..." />
