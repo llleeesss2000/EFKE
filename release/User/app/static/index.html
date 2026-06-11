@@ -110,8 +110,11 @@
             <textarea name="query" placeholder="輸入你的問題..." rows="1"></textarea>
             <button type="submit" class="query-submit">查詢</button>
           </form>
-          <div class="query-filters">
-            <select id="projectFilter" multiple></select>
+          <div class="query-project-chips">
+            <span class="chip-label">搜尋範圍：</span>
+            <div id="projectChips" class="chip-group">
+              <span class="chip-hint">建立專案後可選擇搜尋範圍</span>
+            </div>
           </div>
         </div>
         <div id="queryResult" class="query-result hidden">
@@ -215,35 +218,49 @@
       </section>
 
       <section id="upload" class="view hidden">
-        <form id="uploadForm" class="upload-box">
-          <select id="uploadProject" name="project_id" required></select>
-          <select name="duplicate_strategy">
-            <option value="skip">重複檔案：跳過</option>
-            <option value="new_version">重複檔案：建立新版本</option>
-          </select>
-          <input type="file" name="file" accept=".pdf,.txt,.jpg,.jpeg,.png,.epub" required />
-          <button type="submit">上傳並建立工作</button>
-        </form>
-        <form id="folderForm" class="folder-box">
-          <select id="folderProject" name="project_id" required></select>
-          <select id="folderDuplicateStrategy" name="duplicate_strategy">
-            <option value="skip">重複檔案：跳過</option>
-            <option value="new_version">重複檔案：建立新版本</option>
-          </select>
+        <div class="upload-hero">
+          <h2>上傳檔案</h2>
+          <p class="query-hero-sub">支援 PDF、EPUB、TXT、JPG、JPEG、PNG</p>
+        </div>
+        <div class="upload-card">
+          <div class="upload-card-header">
+            <h3>選擇專案</h3>
+            <div class="upload-options">
+              <select id="uploadProject" name="project_id" required></select>
+              <select name="duplicate_strategy">
+                <option value="skip">重複檔案：跳過</option>
+                <option value="new_version">重複檔案：建立新版本</option>
+              </select>
+            </div>
+          </div>
           <div class="drop-zone" id="dropZone">
             <input id="folderInput" type="file" webkitdirectory directory multiple />
             <input id="batchFileInput" type="file" accept=".pdf,.txt,.jpg,.jpeg,.png,.epub" multiple />
-            <span>拖曳資料夾或檔案到這裡</span>
-            <small>也可以選擇資料夾或多個檔案；只會上傳 PDF、TXT、JPG、JPEG、PNG、EPUB。</small>
+            <input type="file" name="file" accept=".pdf,.txt,.jpg,.jpeg,.png,.epub" id="singleFileInput" />
+            <div class="drop-zone-content">
+              <div class="drop-icon">📁</div>
+              <p class="drop-title">拖曳檔案或資料夾到這裡</p>
+              <p class="drop-sub">或點擊選擇檔案</p>
+            </div>
             <div class="drop-actions">
-              <button id="chooseFolderBtn" type="button" class="ghost">選擇資料夾</button>
               <button id="chooseFilesBtn" type="button" class="ghost">選擇檔案</button>
+              <button id="chooseFolderBtn" type="button" class="ghost">選擇資料夾</button>
             </div>
           </div>
-          <button id="folderSubmitBtn" type="submit">開始上傳</button>
-        </form>
-        <div id="folderProgress" class="upload-progress">
-          <div class="progress-head"><span id="folderProgressText">尚未選擇檔案。</span><strong id="folderProgressCount">0 / 0</strong></div>
+          <div id="filePreview" class="file-preview hidden">
+            <div class="file-preview-header">
+              <span id="filePreviewCount">0 個檔案</span>
+              <button id="clearFilesBtn" type="button" class="ghost small-btn">清除</button>
+            </div>
+            <div id="filePreviewList" class="file-preview-list"></div>
+            <button id="uploadSubmitBtn" type="button" class="upload-submit-btn">開始上傳</button>
+          </div>
+        </div>
+        <div id="folderProgress" class="upload-progress hidden">
+          <div class="progress-header">
+            <span id="folderProgressText">上傳中...</span>
+            <strong id="folderProgressCount">0 / 0</strong>
+          </div>
           <div class="progress-bar"><span id="folderProgressBar"></span></div>
           <div id="folderProgressDetail" class="progress-detail"></div>
         </div>
@@ -251,8 +268,16 @@
       </section>
 
       <section id="jobs" class="view hidden">
-        <p class="setting-note">工作進度會顯示目前階段、總階段完成數與每個處理階段狀態。上傳遇到「重複檔案：跳過」時不會建立新工作。</p>
+        <div class="jobs-header">
+          <h2>工作進度</h2>
+          <p class="query-hero-sub">上傳的檔案會在背景自動處理，可關閉瀏覽器</p>
+        </div>
         <div id="jobList" class="job-list"></div>
+        <div id="jobEmpty" class="job-empty">
+          <div class="job-empty-icon">📋</div>
+          <p>還沒有工作紀錄</p>
+          <p class="job-empty-sub">上傳檔案後，處理進度會顯示在這裡</p>
+        </div>
       </section>
 
       <section id="files" class="view hidden">

@@ -128,14 +128,46 @@ function renderProjects() {
     </article>`;
   }).join("");
   $("#projectList").innerHTML = rows || "尚未建立專案。";
+  renderProjectChips();
   const opts = state.projects.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join("");
-  $("#projectFilter").innerHTML = opts;
   $("#uploadProject").innerHTML = opts;
-  $("#folderProject").innerHTML = opts;
   const current = $("#fileProjectFilter").value;
   $("#fileProjectFilter").innerHTML = state.projects.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join("");
   if (current && state.projects.some((p) => p.id === current)) $("#fileProjectFilter").value = current;
 }
+
+state.selectedProjects = new Set();
+
+function renderProjectChips() {
+  const container = $("#projectChips");
+  if (!state.projects.length) {
+    container.innerHTML = '<span class="chip-hint">建立專案後可選擇搜尋範圍</span>';
+    return;
+  }
+  container.innerHTML = state.projects.map((p) => {
+    const active = state.selectedProjects.has(p.id);
+    return `<button type="button" class="chip ${active ? "active" : ""}" data-project-id="${escapeHtml(p.id)}">
+      <span class="chip-check">${active ? "✓" : ""}</span> ${escapeHtml(p.name)}
+    </button>`;
+  }).join("") + '<button type="button" class="chip" id="selectAllChip">全部</button>';
+}
+
+$("#projectChips").addEventListener("click", (event) => {
+  const chip = event.target.closest(".chip");
+  if (!chip) return;
+  if (chip.id === "selectAllChip") {
+    if (state.selectedProjects.size === state.projects.length) {
+      state.selectedProjects.clear();
+    } else {
+      state.projects.forEach((p) => state.selectedProjects.add(p.id));
+    }
+  } else {
+    const id = chip.dataset.projectId;
+    if (state.selectedProjects.has(id)) state.selectedProjects.delete(id);
+    else state.selectedProjects.add(id);
+  }
+  renderProjectChips();
+});
 
 async function refresh() {
   try {
@@ -156,7 +188,13 @@ async function refresh() {
     state.projectSummaries = Object.fromEntries(summaries);
     renderProjects();
     const jobs = await api("/api/jobs");
-    $("#jobList").innerHTML = jobs.map(renderJob).join("") || "尚無工作。";
+    if (jobs.length) {
+      $("#jobList").innerHTML = jobs.map(renderJob).join("");
+      $("#jobEmpty").classList.add("hidden");
+    } else {
+      $("#jobList").innerHTML = "";
+      $("#jobEmpty").classList.remove("hidden");
+    }
     state.files = await api("/api/files");
     renderFiles();
     renderReview();
@@ -303,42 +341,37 @@ function renderJob(job) {
   const total = Math.max(stagesList.length, 1);
   const percent = Number(job.percent ?? (failed ? 100 : Math.round((completed / total) * 100)));
   const expanded = state.expandedJobs.has(job.id);
+  const statusClass = job.status === "done" ? "done" : job.status === "failed" ? "failed" : job.status === "processing" ? "processing" : "queued";
+  const statusText = { done: "完成", failed: "失敗", processing: "處理中", queued: "排隊中" }[job.status] || job.status;
+  const currentStage = stageLabels[job.current_stage] || job.current_stage;
   const stages = stagesList.map((s) => {
     const stageName = stageLabels[s.stage] || s.stage;
-    const statusName = statusLabels[s.status] || s.status;
-    const stagePercent = Number(s.percent ?? 0);
-    const countText = s.total_count ? `${Number(s.processed_count || 0).toLocaleString()} / ${Number(s.total_count || 0).toLocaleString()}` : `${Number(s.processed_count || 0).toLocaleString()}`;
-    return `<div class="stage-row ${escapeHtml(s.status)}" title="${escapeHtml(s.stage)}:${escapeHtml(s.status)}">
-      <div class="stage-row-head">
-        <strong>${escapeHtml(stageName)}</strong>
-        <span>${escapeHtml(statusName)} / ${Math.round(stagePercent)}% / ${formatDuration(s.elapsed_seconds)}</span>
-      </div>
-      <div class="progress-bar"><span style="width:${Math.max(0, Math.min(100, stagePercent))}%"></span></div>
-      <small>${escapeHtml(countText)}${s.current_file ? ` / ${escapeHtml(s.current_file)}` : ""}</small>
-      ${s.error ? `<p class="warn">${escapeHtml(s.error)}</p>` : ""}
+    const dotClass = s.status;
+    return `<div class="job-stage">
+      <span class="job-stage-dot ${escapeHtml(dotClass)}"></span>
+      <span class="job-stage-name">${escapeHtml(stageName)}</span>
+      <span class="job-stage-info">${formatDuration(s.elapsed_seconds)}</span>
     </div>`;
   }).join("");
-  const currentStage = stageLabels[job.current_stage] || job.current_stage;
-  const jobStatus = statusLabels[job.status] || job.status;
-  return `<article class="job ${expanded ? "expanded" : ""}" data-toggle-job="${escapeHtml(job.id)}">
-    <div class="action-row">
-    <div>
-      <strong>${escapeHtml(job.filename)}</strong>
-      <div class="job-progress-line">
-        <span>目前階段：${escapeHtml(currentStage)}</span>
-        <strong>${Math.round(percent)}%</strong>
+  return `<div class="job-card">
+    <div class="job-card-header">
+      <div class="job-card-title">
+        <span>${escapeHtml(job.filename)}</span>
       </div>
-      <div class="progress-bar job-progress"><span style="width:${percent}%"></span></div>
-      <div class="meta"><span>專案：${escapeHtml(job.project_name)}</span><span>工作狀態：${escapeHtml(jobStatus)}</span><span>階段：${completed}/${total}</span><span>累計耗時：${formatDuration(job.elapsed_seconds)}</span><span>Job ID：${escapeHtml(job.id)}</span></div>
-      ${job.error ? `<p class="warn">${escapeHtml(job.error)}</p>` : ""}
+      <div style="display:flex;gap:6px;align-items:center;">
+        <span class="job-status-badge ${statusClass}">${statusText}</span>
+        <button class="ghost small-btn" data-toggle-job="${escapeHtml(job.id)}" type="button">${expanded ? "收合" : "展開"}</button>
+        <button class="danger small-btn" data-delete-job="${escapeHtml(job.id)}" type="button">移除</button>
+      </div>
     </div>
-    <div class="row-actions">
-      <button class="ghost small-btn" type="button">${expanded ? "收合" : "展開"}</button>
-      <button class="danger small-btn" data-delete-job="${escapeHtml(job.id)}">移除</button>
+    <div class="job-card-progress"><span style="width:${percent}%"></span></div>
+    <div class="job-card-meta">
+      <span>專案：${escapeHtml(job.project_name)}</span>
+      <span>階段：${completed}/${total}</span>
+      <span>耗時：${formatDuration(job.elapsed_seconds)}</span>
     </div>
-    </div>
-    ${expanded ? `<div class="stage-list detailed">${stages || "尚無階段紀錄"}</div>` : ""}
-  </article>`;
+    ${expanded ? `<div class="job-card-stages">${stages || "尚無階段紀錄"}</div>` : ""}
+  </div>`;
 }
 
 function renderEvidence(items) {
@@ -745,20 +778,6 @@ document.querySelectorAll("[data-page-filter]").forEach((button) => button.addEv
   renderReaderPageList();
 }));
 
-$("#uploadForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const form = new FormData(event.target);
-  try {
-    const res = await fetch("/api/upload", { method: "POST", body: form });
-    if (!res.ok) throw new Error(await res.text());
-    const data = await res.json();
-    $("#uploadMsg").textContent = data.job_id ? `已建立工作：${data.job_id}` : (data.message || "Server 已回應，但未建立新工作。");
-    refresh();
-  } catch (err) {
-    $("#uploadMsg").textContent = "上傳失敗：" + err.message;
-  }
-});
-
 const allowedUpload = (file) => /\.(pdf|txt|jpe?g|png|epub)$/i.test(file.name);
 
 function renderUploadProgress({ text, detail = "", done = 0, total = state.folderFiles.length, percent = 0 }) {
@@ -771,19 +790,42 @@ function renderUploadProgress({ text, detail = "", done = 0, total = state.folde
 function setFolderFiles(files) {
   state.folderFiles = Array.from(files).filter(allowedUpload);
   const skipped = Array.from(files).length - state.folderFiles.length;
-  renderUploadProgress({
-    text: `準備上傳 ${state.folderFiles.length} 個有效檔案${skipped ? `，略過 ${skipped} 個不支援檔案` : ""}。`,
-    detail: state.folderFiles.slice(0, 5).map((f) => f.webkitRelativePath || f.name).join(" / "),
-    done: 0,
-    total: state.folderFiles.length,
-    percent: 0,
-  });
+  if (state.folderFiles.length) {
+    $("#filePreview").classList.remove("hidden");
+    $("#filePreviewCount").textContent = `${state.folderFiles.length} 個檔案${skipped ? `（略過 ${skipped} 個）` : ""}`;
+    $("#filePreviewList").innerHTML = state.folderFiles.slice(0, 20).map((f) => {
+      const ext = f.name.split(".").pop().toUpperCase();
+      const icons = { PDF: "📄", TXT: "📝", JPG: "🖼️", JPEG: "🖼️", PNG: "🖼️", EPUB: "📚" };
+      const size = f.size > 1024 * 1024 ? `${(f.size / 1024 / 1024).toFixed(1)} MB` : `${(f.size / 1024).toFixed(0)} KB`;
+      return `<div class="file-preview-item">
+        <span class="file-preview-icon">${icons[ext] || "📎"}</span>
+        <span class="file-preview-name">${escapeHtml(f.name)}</span>
+        <span class="file-preview-size">${size}</span>
+      </div>`;
+    }).join("") + (state.folderFiles.length > 20 ? `<div class="file-preview-item"><span class="file-preview-icon">...</span><span>還有 ${state.folderFiles.length - 20} 個檔案</span></div>` : "");
+    renderUploadProgress({ text: "準備上傳", detail: "", done: 0, total: state.folderFiles.length, percent: 0 });
+    $("#folderProgress").classList.remove("hidden");
+  } else {
+    $("#filePreview").classList.add("hidden");
+    $("#folderProgress").classList.add("hidden");
+  }
 }
 
+$("#singleFileInput").addEventListener("change", (event) => {
+  if (event.target.files.length) setFolderFiles(event.target.files);
+});
 $("#folderInput").addEventListener("change", (event) => setFolderFiles(event.target.files));
 $("#batchFileInput").addEventListener("change", (event) => setFolderFiles(event.target.files));
 $("#chooseFolderBtn").addEventListener("click", () => $("#folderInput").click());
 $("#chooseFilesBtn").addEventListener("click", () => $("#batchFileInput").click());
+$("#clearFilesBtn")?.addEventListener("click", () => {
+  state.folderFiles = [];
+  $("#filePreview").classList.add("hidden");
+  $("#folderProgress").classList.add("hidden");
+  $("#singleFileInput").value = "";
+  $("#batchFileInput").value = "";
+  $("#folderInput").value = "";
+});
 
 async function readEntryFiles(entry) {
   if (entry.isFile) {
@@ -803,12 +845,12 @@ async function readEntryFiles(entry) {
 
 $("#dropZone").addEventListener("dragover", (event) => {
   event.preventDefault();
-  $("#dropZone").classList.add("dragging");
+  $("#dropZone").classList.add("dragover");
 });
-$("#dropZone").addEventListener("dragleave", () => $("#dropZone").classList.remove("dragging"));
+$("#dropZone").addEventListener("dragleave", () => $("#dropZone").classList.remove("dragover"));
 $("#dropZone").addEventListener("drop", async (event) => {
   event.preventDefault();
-  $("#dropZone").classList.remove("dragging");
+  $("#dropZone").classList.remove("dragover");
   const items = Array.from(event.dataTransfer.items || []);
   const entries = items.map((item) => item.webkitGetAsEntry && item.webkitGetAsEntry()).filter(Boolean);
   if (entries.length) {
@@ -819,12 +861,36 @@ $("#dropZone").addEventListener("drop", async (event) => {
   }
 });
 
-function uploadBatchFile(projectId, duplicateStrategy, file, index, total) {
-  return new Promise((resolve, reject) => {
-    const form = new FormData();
-    const displayName = file.webkitRelativePath || file.name;
-    form.append("project_id", projectId);
-    form.append("duplicate_strategy", duplicateStrategy);
+$("#uploadSubmitBtn")?.addEventListener("click", async () => {
+  if (!state.folderFiles.length) { $("#uploadMsg").textContent = "請先選擇檔案"; return; }
+  const projectId = $("#uploadProject").value;
+  if (!projectId) { $("#uploadMsg").textContent = "請先選擇專案"; return; }
+  const strategy = document.querySelector('[name="duplicate_strategy"]')?.value || "skip";
+  const files = state.folderFiles;
+  let done = 0;
+  const total = files.length;
+  renderUploadProgress({ text: "上傳中...", detail: "", done: 0, total, percent: 0 });
+  for (const file of files) {
+    try {
+      const form = new FormData();
+      form.append("project_id", projectId);
+      form.append("duplicate_strategy", strategy);
+      form.append("file", file);
+      await fetch("/api/upload", { method: "POST", body: form });
+    } catch (_) {}
+    done++;
+    renderUploadProgress({
+      text: done === total ? "上傳完成" : "上傳中...",
+      detail: file.name,
+      done,
+      total,
+      percent: Math.round((done / total) * 100),
+    });
+  }
+  state.folderFiles = [];
+  $("#filePreview").classList.add("hidden");
+  refresh();
+});
     form.append("file", file, displayName);
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/upload");
@@ -855,69 +921,13 @@ function uploadBatchFile(projectId, duplicateStrategy, file, index, total) {
   });
 }
 
-$("#folderForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const projectId = new FormData(event.target).get("project_id");
-  const duplicateStrategy = new FormData(event.target).get("duplicate_strategy") || "skip";
-  if (!projectId) {
-    renderUploadProgress({ text: "請先選擇專案。", done: 0, total: state.folderFiles.length, percent: 0 });
-    return;
-  }
-  if (!state.folderFiles.length) {
-    renderUploadProgress({ text: "沒有可上傳的有效檔案。", done: 0, total: 0, percent: 0 });
-    return;
-  }
-  let ok = 0;
-  let failed = 0;
-  const failedNames = [];
-  const jobIds = [];
-  $("#folderSubmitBtn").disabled = true;
-  for (let i = 0; i < state.folderFiles.length; i += 1) {
-    const file = state.folderFiles[i];
-    try {
-      const result = await uploadBatchFile(projectId, duplicateStrategy, file, i, state.folderFiles.length);
-      ok += 1;
-      if (result.job_id) jobIds.push(result.job_id);
-      const duplicateText = result.duplicate ? "重複檔案已跳過，未建立新工作。" : "";
-      renderUploadProgress({
-        text: result.job_id ? `已建立工作：${file.webkitRelativePath || file.name}` : `已處理：${file.webkitRelativePath || file.name}`,
-        detail: result.job_id ? `Job ID：${result.job_id}` : (duplicateText || result.message || "Server 已回應。"),
-        done: i + 1,
-        total: state.folderFiles.length,
-        percent: ((i + 1) / state.folderFiles.length) * 100,
-      });
-    } catch (err) {
-      failed += 1;
-      failedNames.push(file.webkitRelativePath || file.name);
-      renderUploadProgress({
-        text: `上傳失敗：${file.webkitRelativePath || file.name}`,
-        detail: err.message,
-        done: i + 1,
-        total: state.folderFiles.length,
-        percent: ((i + 1) / state.folderFiles.length) * 100,
-      });
-    }
-  }
-  renderUploadProgress({
-    text: `批次上傳完成：成功 ${ok}，失敗 ${failed}。`,
-    detail: failedNames.length ? `失敗檔案：${failedNames.slice(0, 8).join(" / ")}` : (jobIds.length ? `本次建立 Job：${jobIds.join(" / ")}` : "所有有效檔案都已完成去重處理，未建立新工作。"),
-    done: state.folderFiles.length,
-    total: state.folderFiles.length,
-    percent: 100,
-  });
-  state.folderFiles = [];
-  $("#folderInput").value = "";
-  $("#batchFileInput").value = "";
-  $("#folderSubmitBtn").disabled = false;
-  refresh();
-});
 
 $("#queryForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const selected = Array.from($("#projectFilter").selectedOptions).map((o) => o.value);
   const query = new FormData(event.target).get("query");
   if (!query.trim()) return;
-  const body = { query, mode: state.mode, project_ids: selected.length ? selected : null, top_k: 10, user: state.user };
+  const selected = state.selectedProjects.size > 0 ? Array.from(state.selectedProjects) : null;
+  const body = { query, mode: state.mode, project_ids: selected, top_k: 10, user: state.user };
   const modeLabel = state.mode === "research" ? "研究模式" : "回答模式";
   $("#answerModeTag").textContent = modeLabel;
   $("#answerText").textContent = "查詢中...";

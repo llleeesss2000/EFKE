@@ -245,6 +245,256 @@ pre { white-space: pre-wrap; line-height: 1.65; margin: 0; }
   font-weight: normal;
   color: var(--muted);
 }
+.query-project-chips {
+  max-width: 720px;
+  margin: 14px auto 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.chip-label {
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.chip-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  font-size: 13px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--ink);
+  transition: all .15s;
+  font: inherit;
+}
+.chip:hover { border-color: var(--accent); }
+.chip.active {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+.chip-check { font-size: 11px; }
+.chip-hint { font-size: 12px; color: var(--muted); }
+.upload-hero { text-align: center; padding: 24px 0 0; }
+.upload-hero h2 { margin: 0 0 4px; font-size: 28px; }
+.upload-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  max-width: 720px;
+  margin: 0 auto;
+}
+.upload-card-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.upload-card-header h3 { margin: 0; font-size: 15px; }
+.upload-options {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+}
+.upload-options select { font-size: 13px; padding: 6px 10px; border-radius: 6px; }
+.drop-zone {
+  position: relative;
+  padding: 48px 24px;
+  text-align: center;
+  border: 2px dashed var(--line);
+  margin: 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all .2s;
+}
+.drop-zone:hover, .drop-zone.dragover {
+  border-color: var(--accent);
+  background: rgba(181, 45, 29, .04);
+}
+.drop-zone input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.drop-zone-content { pointer-events: none; }
+.drop-icon { font-size: 40px; margin-bottom: 8px; }
+.drop-title { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
+.drop-sub { font-size: 13px; color: var(--muted); margin: 0; }
+.drop-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+  pointer-events: auto;
+}
+.drop-actions button { pointer-events: auto; }
+.file-preview { padding: 0 16px 16px; }
+.file-preview.hidden { display: none; }
+.file-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.file-preview-list {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+.file-preview-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(0,0,0,.06);
+}
+.file-preview-item:last-child { border-bottom: 0; }
+.file-preview-icon { font-size: 16px; }
+.file-preview-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-preview-size { color: var(--muted); font-size: 12px; }
+.upload-submit-btn {
+  width: 100%;
+  margin-top: 10px;
+  padding: 12px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.upload-progress { max-width: 720px; margin: 16px auto 0; }
+.upload-progress.hidden { display: none; }
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+.progress-bar {
+  height: 8px;
+  background: var(--line);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.progress-bar span {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+  border-radius: 4px;
+  transition: width .3s;
+  width: 0%;
+}
+.progress-detail {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--muted);
+  max-height: 150px;
+  overflow-y: auto;
+}
+.jobs-header { text-align: center; padding: 24px 0 0; }
+.jobs-header h2 { margin: 0 0 4px; font-size: 28px; }
+.job-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--muted);
+}
+.job-empty-icon { font-size: 48px; margin-bottom: 12px; }
+.job-empty p { margin: 4px 0; }
+.job-empty-sub { font-size: 13px; }
+.job-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 12px;
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.job-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.job-card-title {
+  font-weight: 600;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.job-status-badge {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-weight: 600;
+}
+.job-status-badge.processing { background: #fff3cd; color: #856404; }
+.job-status-badge.done { background: #d4edda; color: #155724; }
+.job-status-badge.failed { background: #f8d7da; color: #721c24; }
+.job-status-badge.queued { background: #e2e3e5; color: #383d41; }
+.job-card-progress {
+  height: 6px;
+  background: var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.job-card-progress span {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+  border-radius: 3px;
+  transition: width .3s;
+}
+.job-card-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.job-card-stages {
+  margin-top: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.job-stage {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+.job-stage-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.job-stage-dot.completed { background: var(--ok); }
+.job-stage-dot.processing { background: var(--warn); animation: pulse 1s infinite; }
+.job-stage-dot.failed { background: var(--red); }
+.job-stage-dot.not_implemented { background: var(--muted); }
+.job-stage-dot.queued { background: var(--line); }
+.job-stage-name { flex: 1; }
+.job-stage-info { color: var(--muted); font-size: 12px; }
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .4; }
+}
 .evidence-list, .job-list, .table {
   display: grid;
   gap: 10px;
