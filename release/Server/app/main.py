@@ -1139,26 +1139,50 @@ def caption_file_images(file_row: dict[str, Any], job_id: str) -> int:
     return completed
 
 
+def get_llm_config() -> dict[str, str]:
+    settings = {r["key"]: r["value"] for r in rows("SELECT key, value FROM settings WHERE key LIKE 'llm_%'")}
+    return {
+        "provider": settings.get("llm_provider", os.getenv("LLM_PROVIDER", "ollama")),
+        "base_url": settings.get("llm_base_url", LLM_BASE_URL),
+        "api_key": settings.get("llm_api_key", LLM_API_KEY),
+        "model": settings.get("llm_model", LLM_MODEL),
+    }
+
+
 def call_llm(prompt: str) -> str | None:
-    if not LLM_BASE_URL or not LLM_MODEL:
+    return call_llm_with("你是繁體中文知識整理助手。只能根據使用者提供的 evidence 摘要，不可補充外部資訊。", prompt)
+
+
+def call_llm_with(system_prompt: str, user_prompt: str) -> str | None:
+    cfg = get_llm_config()
+    base_url = cfg["base_url"]
+    model = cfg["model"]
+    if not base_url or not model:
         return None
     try:
-        response = httpx.post(
-            f"{LLM_BASE_URL}/chat/completions",
-            headers={"Authorization": f"Bearer {LLM_API_KEY}"},
+        if cfg["provider"] == "ollama":
+            resp = httpx.post(
+                f"{base_url}/api/generate",
+                json={"model": model, "system": system_prompt, "prompt": user_prompt, "stream": False},
+                timeout=180,
+            )
+            resp.raise_for_status()
+            return resp.json().get("response", "").strip()
+        resp = httpx.post(
+            f"{base_url}/chat/completions",
+            headers={"Authorization": f"Bearer {cfg['api_key']}"},
             json={
-                "model": LLM_MODEL,
+                "model": model,
                 "messages": [
-                    {"role": "system", "content": "你是繁體中文知識整理助手。只能根據使用者提供的 evidence 摘要，不可補充外部資訊。"},
-                    {"role": "user", "content": prompt},
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
                 ],
                 "temperature": 0.2,
             },
-            timeout=120,
+            timeout=180,
         )
-        response.raise_for_status()
-        data = response.json()
-        return data["choices"][0]["message"]["content"].strip()
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"].strip()
     except Exception:
         return None
 
@@ -1896,16 +1920,34 @@ def search_evidence(query: str, project_ids: list[str] | None, top_k: int = 10) 
 def answer_from_evidence(query: str, mode: str, evidence: list[dict[str, Any]]) -> str:
     if not evidence:
         return "資料庫中未找到足夠證據。"
+    evidence_block = ""
+    for idx, ev in enumerate(evidence[:8], start=1):
+        evidence_block += f"[{idx}] {ev['evidence_text'][:400]}\n    來源：{ev['source_file']}，頁 {ev['page_number']}，區塊 {ev['block_id']}，專案：{ev.get('project','')}\n\n"
     if mode == "research":
-        lines = ["Evidence："]
-        for idx, ev in enumerate(evidence[:5], start=1):
-            snippet = ev["evidence_text"][:220]
-            lines.append(f"{idx}. {snippet}（來源：{ev['source_file']}，頁 {ev['page_number']}，區塊 {ev['block_id']}）")
-        lines.append("結論：以上只根據列出的 Evidence 整理；若 Evidence 未涵蓋問題，請補充資料後重查。")
-        lines.append("不確定性：中，因第一版使用 lexical reranker，尚未接入外部 reranker/LLM。")
-        return "\n".join(lines)
-    ev = evidence[0]
-    return f"{ev['evidence_text'][:500]}\n\n來源：{ev['source_file']}，頁 {ev['page_number']}，區塊 {ev['block_id']}。"
+        system_prompt = """你是 Evidence-First 知識整理助手。使用者會給你一組搜尋到的 Evidence，你必須：
+1. 先列出所有 Evidence 摘要（每則 1-2 句）
+2. 比較這些 Evidence 的異同
+3. 給出結論
+4. 標示不確定性（高/中/低）
+5. 只根據提供的 Evidence 回答，不要補充外部知識
+6. 找不到足夠證據時明確說「證據不足」"""
+        user_prompt = f"使用者問題：{query}\n\n以下是從知識庫搜尋到的 Evidence：\n\n{evidence_block}\n請根據以上 Evidence 整理回答。"
+    else:
+        system_prompt = """你是 Evidence-First 知識整理助手。使用者會給你一組搜尋到的 Evidence，你必須：
+1. 根據 Evidence 直接回答問題
+2. 回答要簡潔扼要（200 字以內）
+3. 必須引用來源（文件名稱和頁碼）
+4. 只根據提供的 Evidence 回答，不要補充外部知識
+5. 找不到足夠證據時說「資料庫中未找到足夠證據」"""
+        user_prompt = f"使用者問題：{query}\n\n以下是從知識庫搜尋到的 Evidence：\n\n{evidence_block}\n請直接回答。"
+    llm_answer = call_llm_with(system_prompt, user_prompt)
+    if llm_answer:
+        sources = "\n".join(f"- {ev['source_file']} 頁 {ev['page_number']} 區塊 {ev['block_id']}" for ev in evidence[:5])
+        return f"{llm_answer}\n\n📚 來源：\n{sources}"
+    lines = [f"⚠️ LLM 未設定，以下為原始 Evidence：\n"]
+    for idx, ev in enumerate(evidence[:5], start=1):
+        lines.append(f"[{idx}] {ev['evidence_text'][:220]}（來源：{ev['source_file']}，頁 {ev['page_number']}）")
+    return "\n".join(lines)
 
 
 class LoginBody(BaseModel):
