@@ -1175,28 +1175,84 @@ $("#llmForm").addEventListener("submit", async (event) => {
   }
 });
 
+const kgColors = { company: "#4fc3f7", person: "#f48fb1", indicator: "#81c784", strategy: "#ffb74d", concept: "#ce93d8" };
+const kgLabels = { company: "公司", person: "人物", indicator: "指標", strategy: "策略", concept: "概念" };
+
 async function loadKG() {
   const projectId = $("#kgProjectSelect").value;
   if (!projectId) return;
   try {
     const data = await api(`/api/kg/${projectId}`);
-    if (data.entities && data.entities.length) {
-      const typeLabels = { company: "公司", person: "人物", indicator: "指標", strategy: "策略" };
-      $("#kgContent").innerHTML = `<div class="kg-entity-grid">${data.entities.map((e) => {
-        let rels = [];
-        try { rels = JSON.parse(e.relations_json || "[]"); } catch (_) {}
-        const relsHtml = rels.length ? `<div class="kg-entity-relations">相關：${rels.slice(0, 5).map((r) => `<span>${escapeHtml(r)}</span>`).join("、")}</div>` : "";
-        return `<div class="kg-entity-card">
-          <div class="kg-entity-name">${escapeHtml(e.entity_name)}</div>
-          <span class="kg-entity-type ${escapeHtml(e.entity_type)}">${typeLabels[e.entity_type] || e.entity_type}</span>
-          ${relsHtml}
-        </div>`;
-      }).join("")}</div>`;
-    } else {
-      $("#kgContent").innerHTML = '<div class="workflow-empty"><div class="job-empty-icon">🕸️</div><p>尚未產生知識圖譜</p></div>';
+    if (!data.entities || !data.entities.length) {
+      $("#kgGraph").innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#888;font-size:16px;">尚未產生知識圖譜，請先按「產生圖譜」</div>';
+      $("#kgLegend").innerHTML = "";
+      return;
     }
+    const entities = data.entities;
+    const nodeMap = {};
+    const nodes = [];
+    const links = [];
+    entities.forEach((e) => {
+      let rels = [];
+      try { rels = JSON.parse(e.relations_json || "[]"); } catch (_) {}
+      nodeMap[e.entity_name] = { id: e.entity_name, type: e.entity_type, relations: rels.length, size: Math.max(8, Math.min(30, 8 + rels.length * 2)) };
+      nodes.push(nodeMap[e.entity_name]);
+    });
+    entities.forEach((e) => {
+      let rels = [];
+      try { rels = JSON.parse(e.relations_json || "[]"); } catch (_) {}
+      rels.forEach((r) => {
+        if (nodeMap[r] && !links.find((l) => (l.source === e.entity_name && l.target === r) || (l.source === r && l.target === e.entity_name))) {
+          links.push({ source: e.entity_name, target: r });
+        }
+      });
+    });
+    const container = document.getElementById("kgGraph");
+    container.innerHTML = "";
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    const svg = d3.select(container).append("svg").attr("width", width).attr("height", height);
+    const g = svg.append("g");
+    svg.call(d3.zoom().scaleExtent([0.2, 5]).on("zoom", (event) => g.attr("transform", event.transform)));
+    const simulation = d3.forceSimulation(nodes)
+      .force("link", d3.forceLink(links).id((d) => d.id).distance(80))
+      .force("charge", d3.forceManyBody().strength(-200))
+      .force("center", d3.forceCenter(width / 2, height / 2))
+      .force("collision", d3.forceCollide().radius((d) => d.size + 5));
+    const link = g.append("g").selectAll("line").data(links).join("line")
+      .attr("stroke", "#555").attr("stroke-width", 1).attr("stroke-opacity", 0.6);
+    const node = g.append("g").selectAll("circle").data(nodes).join("circle")
+      .attr("r", (d) => d.size).attr("fill", (d) => kgColors[d.type] || "#888")
+      .attr("stroke", "#fff").attr("stroke-width", 1.5).attr("opacity", 0.9)
+      .call(d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended));
+    const label = g.append("g").selectAll("text").data(nodes).join("text")
+      .text((d) => d.id).attr("font-size", (d) => Math.max(9, Math.min(13, d.size * 0.7)))
+      .attr("fill", "#ddd").attr("text-anchor", "middle").attr("dy", (d) => d.size + 14)
+      .attr("pointer-events", "none");
+    const tooltip = d3.select(container).append("div").attr("class", "kg-tooltip").style("display", "none");
+    node.on("mouseover", (event, d) => {
+      tooltip.style("display", "block").html(`<strong>${d.id}</strong><br/>類型：${kgLabels[d.type] || d.type}<br/>連接：${d.relations} 個`);
+      tooltip.style("left", (event.offsetX + 12) + "px").style("top", (event.offsetY - 10) + "px");
+      link.attr("stroke-opacity", (l) => (l.source.id === d.id || l.target.id === d.id) ? 1 : 0.15)
+          .attr("stroke-width", (l) => (l.source.id === d.id || l.target.id === d.id) ? 2.5 : 1);
+      node.attr("opacity", (n) => (n.id === d.id || d.relations.includes(n.id)) ? 1 : 0.2);
+    }).on("mouseout", () => {
+      tooltip.style("display", "none");
+      link.attr("stroke-opacity", 0.6).attr("stroke-width", 1);
+      node.attr("opacity", 0.9);
+    });
+    simulation.on("tick", () => {
+      link.attr("x1", (d) => d.source.x).attr("y1", (d) => d.source.y).attr("x2", (d) => d.target.x).attr("y2", (d) => d.target.y);
+      node.attr("cx", (d) => d.x).attr("cy", (d) => d.y);
+      label.attr("x", (d) => d.x).attr("y", (d) => d.y);
+    });
+    function dragstarted(event, d) { if (!event.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; }
+    function dragged(event, d) { d.fx = event.x; d.fy = event.y; }
+    function dragended(event, d) { if (!event.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; }
+    const legendHtml = Object.entries(kgColors).map(([type, color]) => `<span class="kg-legend-item"><span class="kg-legend-dot" style="background:${color}"></span>${kgLabels[type] || type}</span>`).join("");
+    $("#kgLegend").innerHTML = legendHtml;
   } catch (err) {
-    $("#kgContent").innerHTML = `<div class="workflow-empty"><p>載入失敗：${escapeHtml(err.message)}</p></div>`;
+    $("#kgGraph").innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#f44;font-size:14px;">載入失敗：${escapeHtml(err.message)}</div>`;
   }
 }
 

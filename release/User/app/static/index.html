@@ -4,7 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Evidence-First Knowledge Engine</title>
-  <link rel="stylesheet" href="/static/styles.css?v=llm-fix-20260612" />
+  <link rel="stylesheet" href="/static/styles.css?v=kg-graph-20260613" />
+  <script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
 <body>
   <main id="setup" class="login-shell hidden">
@@ -183,22 +184,17 @@
       </section>
 
       <section id="kg" class="view hidden">
-        <div class="wiki-hero">
+        <div class="kg-topbar">
           <h2>知識圖譜</h2>
-          <p class="query-hero-sub">從文件中萃取實體與關係，形成知識網絡</p>
-        </div>
-        <div class="workflow-controls">
-          <select id="kgProjectSelect"></select>
-          <button id="kgGenerateBtn" type="button">產生圖譜</button>
-          <button id="kgRefreshBtn" type="button" class="ghost">重整</button>
-        </div>
-        <p id="kgMsg" class="warn"></p>
-        <div id="kgContent" class="kg-content">
-          <div class="workflow-empty">
-            <div class="job-empty-icon">🕸️</div>
-            <p>選擇專案後按「產生圖譜」</p>
+          <div class="kg-controls">
+            <select id="kgProjectSelect"></select>
+            <button id="kgGenerateBtn" type="button">產生圖譜</button>
+            <button id="kgRefreshBtn" type="button" class="ghost">重整</button>
           </div>
         </div>
+        <p id="kgMsg" class="warn"></p>
+        <div id="kgGraph" class="kg-graph-container"></div>
+        <div id="kgLegend" class="kg-legend"></div>
       </section>
 
       <section id="workflow" class="view hidden">
