@@ -1190,74 +1190,53 @@ async function loadKG() {
     }
     const entities = data.entities;
     const nodeMap = {};
-    const nodes = [];
-    const links = [];
+    const visNodes = [];
+    const visEdges = [];
+    const edgeSet = new Set();
     entities.forEach((e) => {
       let rels = [];
       try { rels = JSON.parse(e.relations_json || "[]"); } catch (_) {}
-      const connectionCount = rels.length;
-      nodeMap[e.entity_name] = { id: e.entity_name, type: e.entity_type, connections: connectionCount };
-      nodes.push(nodeMap[e.entity_name]);
+      nodeMap[e.entity_name] = { connections: rels.length };
+      const size = Math.max(12, Math.min(40, 12 + rels.length * 2.5));
+      visNodes.push({
+        id: e.entity_name,
+        label: e.entity_name,
+        size: size,
+        color: { background: kgColors[e.entity_type] || "#888", border: "#fff", highlight: { background: kgColors[e.entity_type] || "#888", border: "#333" } },
+        font: { size: Math.max(10, Math.min(14, size * 0.4)), color: "#222", face: "Noto Serif TC, Georgia, serif", strokeWidth: 3, strokeColor: "#fff" },
+        borderWidth: 2,
+        shadow: { enabled: true, color: "rgba(0,0,0,0.1)", size: 6, x: 2, y: 2 },
+      });
     });
     entities.forEach((e) => {
       let rels = [];
       try { rels = JSON.parse(e.relations_json || "[]"); } catch (_) {}
       rels.forEach((r) => {
-        if (nodeMap[r] && !links.find((l) => (l.source === e.entity_name && l.target === r) || (l.source === r && l.target === e.entity_name))) {
-          links.push({ source: e.entity_name, target: r });
+        if (nodeMap[r]) {
+          const key = [e.entity_name, r].sort().join("||");
+          if (!edgeSet.has(key)) {
+            edgeSet.add(key);
+            visEdges.push({ from: e.entity_name, to: r, color: { color: "#ccc", highlight: "#888" }, smooth: { type: "continuous", roundness: 0.2 } });
+          }
         }
       });
     });
-    nodes.forEach((n) => { n.size = Math.max(14, Math.min(45, 14 + n.connections * 1.5)); });
     const container = document.getElementById("kgGraph");
     container.innerHTML = "";
-    const width = container.clientWidth;
-    const height = container.clientHeight;
-    const svg = d3.select(container).append("svg").attr("width", width).attr("height", height);
-    const g = svg.append("g");
-    svg.call(d3.zoom().scaleExtent([0.15, 4]).on("zoom", (event) => g.attr("transform", event.transform)));
-    const simulation = d3.forceSimulation(nodes)
-      .force("link", d3.forceLink(links).id((d) => d.id).distance(120).strength(0.3))
-      .force("charge", d3.forceManyBody().strength(-400).distanceMax(300))
-      .force("center", d3.forceCenter(width / 2, height / 2))
-      .force("collision", d3.forceCollide().radius((d) => d.size + 12))
-      .force("x", d3.forceX(width / 2).strength(0.05))
-      .force("y", d3.forceY(height / 2).strength(0.05));
-    const link = g.append("g").selectAll("line").data(links).join("line")
-      .attr("stroke", "#bbb").attr("stroke-width", 1.2).attr("stroke-opacity", 0.5);
-    const node = g.append("g").selectAll("circle").data(nodes).join("circle")
-      .attr("r", (d) => d.size)
-      .attr("fill", (d) => kgColors[d.type] || "#888")
-      .attr("stroke", "#fff").attr("stroke-width", 2).attr("opacity", 0.92)
-      .call(d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended));
-    const label = g.append("g").selectAll("text").data(nodes).join("text")
-      .text((d) => d.id)
-      .attr("font-size", (d) => Math.max(8, Math.min(12, d.size * 0.55)))
-      .attr("fill", "#222").attr("text-anchor", "middle").attr("dominant-baseline", "central")
-      .attr("font-weight", (d) => d.size > 25 ? "600" : "400")
-      .attr("pointer-events", "none");
-    const tooltip = d3.select(container).append("div").attr("class", "kg-tooltip").style("display", "none");
-    node.on("mouseover", (event, d) => {
-      tooltip.style("display", "block").html(`<strong>${d.id}</strong><br/>類型：${kgLabels[d.type] || d.type}<br/>連接：${d.connections} 個`);
-      tooltip.style("left", (event.offsetX + 15) + "px").style("top", (event.offsetY - 15) + "px");
-      link.attr("stroke-opacity", (l) => (l.source.id === d.id || l.target.id === d.id) ? 0.9 : 0.08)
-          .attr("stroke-width", (l) => (l.source.id === d.id || l.target.id === d.id) ? 2.5 : 0.8);
-      node.attr("opacity", (n) => (n.id === d.id || d.connections > 0) ? 1 : 0.15);
-      label.attr("opacity", (n) => (n.id === d.id || links.some((l) => (l.source.id === d.id && l.target.id === n.id) || (l.target.id === d.id && l.source.id === n.id))) ? 1 : 0.15);
-    }).on("mouseout", () => {
-      tooltip.style("display", "none");
-      link.attr("stroke-opacity", 0.5).attr("stroke-width", 1.2);
-      node.attr("opacity", 0.92);
-      label.attr("opacity", 1);
+    const network = new vis.Network(container, { nodes: new vis.DataSet(visNodes), edges: new vis.DataSet(visEdges) }, {
+      physics: {
+        enabled: true,
+        solver: "forceAtlas2Based",
+        forceAtlas2Based: { gravitationalConstant: -60, centralGravity: 0.008, springLength: 160, springConstant: 0.02, damping: 0.6, avoidOverlap: 0.8 },
+        stabilization: { iterations: 200, fit: true },
+        maxVelocity: 30,
+        minVelocity: 0.5,
+      },
+      nodes: { shape: "dot", scaling: { min: 12, max: 40 } },
+      edges: { width: 1, smooth: { type: "continuous", roundness: 0.2 } },
+      interaction: { hover: true, tooltipDelay: 100, zoomView: true, dragView: true, navigationButtons: false },
+      layout: { improvedLayout: true },
     });
-    simulation.on("tick", () => {
-      link.attr("x1", (d) => d.source.x).attr("y1", (d) => d.source.y).attr("x2", (d) => d.target.x).attr("y2", (d) => d.target.y);
-      node.attr("cx", (d) => d.x).attr("cy", (d) => d.y);
-      label.attr("x", (d) => d.x).attr("y", (d) => d.y);
-    });
-    function dragstarted(event, d) { if (!event.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; }
-    function dragged(event, d) { d.fx = event.x; d.fy = event.y; }
-    function dragended(event, d) { if (!event.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; }
     const legendHtml = Object.entries(kgColors).map(([type, color]) => `<span class="kg-legend-item"><span class="kg-legend-dot" style="background:${color}"></span>${kgLabels[type] || type}</span>`).join("");
     $("#kgLegend").innerHTML = legendHtml;
   } catch (err) {
