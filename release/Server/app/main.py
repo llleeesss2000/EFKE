@@ -1624,6 +1624,51 @@ def extract_epub(file_row: dict[str, Any], job_id: str) -> None:
             if key not in seen_formulas:
                 seen_formulas.add(key)
                 formulas.append(formula)
+        img_tags = soup.find_all("img")
+        for img_tag in img_tags:
+            src = img_tag.get("src", "").strip()
+            if not src:
+                continue
+            img_data = None
+            img_name = src
+            if src.startswith("data:"):
+                import base64
+                try:
+                    header, encoded = src.split(",", 1)
+                    img_data = base64.b64decode(encoded)
+                    img_name = f"doc{doc_index:04d}_img_{img_tags.index(img_tag):04d}"
+                except Exception:
+                    continue
+            else:
+                for img_item in image_items:
+                    if img_item.get_name() == src or img_item.get_name().endswith(src):
+                        img_data = img_item.get_content()
+                        img_name = img_item.get_name()
+                        break
+                if img_data is None:
+                    for img_item in image_items:
+                        item_name = img_item.get_name()
+                        if src in item_name or item_name in src:
+                            img_data = img_item.get_content()
+                            img_name = item_name
+                            break
+            if img_data:
+                ext = safe_asset_ext(img_name, "")
+                if ext == "bin":
+                    ext = "png"
+                img_path = asset_root / f"epub_inline_{doc_index:04d}_{img_tags.index(img_tag):04d}.{ext}"
+                img_path.write_bytes(img_data)
+                alt = img_tag.get("alt", "")
+                caption = alt if alt else f"EPUB 內文圖片：{file_row['filename']} 第 {doc_index} 篇"
+                with db() as conn:
+                    conn.execute(
+                        "INSERT INTO assets VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (str(uuid.uuid4()), file_row["id"], file_row["project_id"], doc_index,
+                         f"epub_inline_{doc_index:04d}_{img_tags.index(img_tag):04d}", "image",
+                         str(img_path), caption, "", "not_implemented",
+                         json.dumps({"source_hash": file_row["source_hash"], "epub_item": item.get_name(), "img_src": src}, ensure_ascii=False), now()),
+                    )
+                image_count += 1
         if not text:
             content = ""
         else:
