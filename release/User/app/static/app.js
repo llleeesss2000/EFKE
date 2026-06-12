@@ -1083,7 +1083,13 @@ async function loadWiki() {
   try {
     const data = await api(`/api/wiki/${projectId}`);
     if (data.pages && data.pages.length) {
+      const tocHtml = data.pages.map((page) => {
+        const slug = "wiki-" + page.id.slice(0, 8);
+        return `<a class="wiki-toc-item" data-wiki-target="${slug}">${escapeHtml(page.title)}</a>`;
+      }).join("");
+      $("#wikiToc").innerHTML = tocHtml;
       $("#wikiContent").innerHTML = data.pages.map((page) => {
+        const slug = "wiki-" + page.id.slice(0, 8);
         let images = "";
         try { images = JSON.parse(page.images_json || "[]"); } catch (_) { images = []; }
         let sources = "";
@@ -1091,15 +1097,25 @@ async function loadWiki() {
         const modelTag = page.model_name ? `<span class="wiki-model-tag">${escapeHtml(page.model_name)}</span>` : "";
         const imagesHtml = images.length ? `<div class="wiki-page-images">${images.map((img) => `<img src="/api/assets/${escapeHtml(img.id)}" alt="${escapeHtml(img.caption)}" loading="lazy" />`).join("")}</div>` : "";
         const sourcesHtml = sources.length ? `<div class="wiki-page-sources">${sources.map((s) => `<span>📄 ${escapeHtml(s.file)} 頁 ${s.page}</span>`).join("")}</div>` : "";
-        return `<div class="wiki-page">
+        const body = escapeHtml(page.content).replace(/^## (.+)$/gm, "<h3>$1</h3").replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/^- (.+)$/gm, "<li>$1</li>").replace(/(<li>.*<\/li>)/gs, "<ul>$1</ul>");
+        return `<div class="wiki-page" id="${slug}">
           <h2>${escapeHtml(page.title)} ${modelTag}</h2>
-          <div class="wiki-page-body">${escapeHtml(page.content).replace(/^## .+$/m, "").trim()}</div>
+          <div class="wiki-page-body">${body}</div>
           ${imagesHtml}
           ${sourcesHtml}
         </div>`;
       }).join("");
+      document.querySelectorAll(".wiki-toc-item").forEach((item) => {
+        item.addEventListener("click", () => {
+          const target = document.getElementById(item.dataset.wikiTarget);
+          if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+          document.querySelectorAll(".wiki-toc-item").forEach((t) => t.classList.remove("active"));
+          item.classList.add("active");
+        });
+      });
     } else {
-      $("#wikiContent").innerHTML = '<div class="wiki-empty"><div class="job-empty-icon">📖</div><p>尚未產生維基</p><p class="job-empty-sub">按「產生/更新維基」開始</p></div>';
+      $("#wikiToc").innerHTML = "";
+      $("#wikiContent").innerHTML = '<div class="wiki-empty"><div class="job-empty-icon">📖</div><p>尚未產生維基</p><p class="job-empty-sub">按「產生/更新」開始</p></div>';
     }
   } catch (err) {
     $("#wikiContent").innerHTML = `<div class="wiki-empty"><p>載入失敗：${escapeHtml(err.message)}</p></div>`;

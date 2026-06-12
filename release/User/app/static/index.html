@@ -135,38 +135,42 @@
       </section>
 
       <section id="wiki" class="view hidden">
-        <div class="wiki-hero">
-          <h2>知識維基</h2>
-          <p class="query-hero-sub">AI 自動整理專案文件，產生維基百科風格的知識頁面</p>
-        </div>
-        <div class="wiki-controls">
-          <select id="wikiProjectSelect"></select>
-          <button id="wikiGenerateBtn" type="button">產生/更新維基</button>
-          <button id="wikiDeleteBtn" type="button" class="ghost" style="color:var(--red)">刪除維基</button>
-          <button id="wikiRefreshBtn" type="button" class="ghost">重新整理</button>
-        </div>
-        <div id="wikiJobPanel" class="wiki-job-panel hidden">
-          <div class="wiki-job-header">
-            <span id="wikiJobStatus">處理中...</span>
-            <div class="wiki-job-actions">
-              <button id="wikiPauseBtn" type="button" class="ghost small-btn">暫停</button>
-              <button id="wikiResumeBtn" type="button" class="ghost small-btn hidden">繼續</button>
-              <button id="wikiStopBtn" type="button" class="danger small-btn">停止</button>
+        <div class="wiki-layout">
+          <aside class="wiki-sidebar">
+            <h3>目錄</h3>
+            <div id="wikiToc" class="wiki-toc"></div>
+            <div class="wiki-sidebar-actions">
+              <select id="wikiProjectSelect"></select>
+              <button id="wikiGenerateBtn" type="button" class="small-btn">產生/更新</button>
+              <button id="wikiDeleteBtn" type="button" class="ghost small-btn" style="color:var(--red)">刪除</button>
+              <button id="wikiRefreshBtn" type="button" class="ghost small-btn">重整</button>
             </div>
-          </div>
-          <div class="progress-bar"><span id="wikiProgressBar"></span></div>
-          <div class="wiki-job-detail">
-            <span id="wikiJobProgress">0 / 0</span>
-            <span id="wikiJobCurrent"></span>
-          </div>
-        </div>
-        <p id="wikiMsg" class="warn"></p>
-        <div id="wikiContent" class="wiki-content">
-          <div class="wiki-empty">
-            <div class="job-empty-icon">📖</div>
-            <p>選擇專案後按「產生維基」</p>
-            <p class="job-empty-sub">AI 會閱讀專案文件，自動產生知識條目</p>
-          </div>
+            <div id="wikiJobPanel" class="wiki-job-panel hidden">
+              <div class="wiki-job-header">
+                <span id="wikiJobStatus">處理中...</span>
+                <div class="wiki-job-actions">
+                  <button id="wikiPauseBtn" type="button" class="ghost small-btn">⏸</button>
+                  <button id="wikiResumeBtn" type="button" class="ghost small-btn hidden">▶</button>
+                  <button id="wikiStopBtn" type="button" class="danger small-btn">⏹</button>
+                </div>
+              </div>
+              <div class="progress-bar"><span id="wikiProgressBar"></span></div>
+              <div class="wiki-job-detail">
+                <span id="wikiJobProgress">0 / 0</span>
+                <span id="wikiJobCurrent"></span>
+              </div>
+            </div>
+            <p id="wikiMsg" class="warn"></p>
+          </aside>
+          <main class="wiki-main">
+            <div id="wikiContent" class="wiki-content">
+              <div class="wiki-empty">
+                <div class="job-empty-icon">📖</div>
+                <p>選擇專案後按「產生/更新」</p>
+                <p class="job-empty-sub">AI 會閱讀專案文件，自動產生知識條目</p>
+              </div>
+            </div>
+          </main>
         </div>
       </section>
 
