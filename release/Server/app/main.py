@@ -2675,25 +2675,51 @@ def test_llm_query(body: LLMTestBody) -> dict[str, Any]:
         return {"ok": False, "error": str(exc)[:200]}
 
 
+INVESTMENT_KEYWORDS = {
+    '本益比', '殖利率', '股利', '股息', '除權息', '填權息', '配股', '配息',
+    'K線', '均線', 'KD', 'MACD', 'RSI', '布林通道', '技術分析', '籌碼',
+    '融資', '融券', '主力', '外資', '投信', '自營商', '三大法人',
+    '停損', '停利', '波段', '當沖', '權證', '期貨', '選擇權', '外匯',
+    '存股', '價值股', '成長股', 'ETF', '投資組合', '資產配置',
+    'EPS', 'ROE', 'ROA', '毛利率', '營業利益率', '淨利率',
+    '損益表', '資產負債表', '現金流量表', '財務報表',
+    '支撐', '壓力', '趨勢線', '缺口', '型態', '反轉',
+    '買點', '賣點', '買進', '賣出', '突破', '跌破',
+    '成交量', '成交值', '漲停', '跌停', '漲幅', '跌幅',
+    '景氣循環', '利率', '匯率', '通膨', 'GDP',
+    '台積電', '中信金', '台泥', '聯詠', '華碩', '鴻海',
+    '複利', '風險', '報酬', '分散', '紀律', '心態',
+    '台指期', '期權', '選擇權', '外匯保證金',
+    '財報', '營收', '獲利', '虧損', '盈餘',
+    '多頭', '空頭', '盤整', '趨勢', '反彈',
+}
+
+NOISE_PHRASES = {'重要內容摘錄', '如下圖所示', '從圖中可以看出', '如下所示', '也就是說', '換句話說', '事實上', '例如', '比如', '就是說', '意思是', '基本上', '一般來說', '通常', '其實', '所以', '因為', '那麼', '這樣', '這樣的話', '資料來源', '詳見圖', '上圖說明', '自選返回', '擴展關聯', '點擊訂購', '版新用戶', '期貨開戶', '不限資金', '直接申請', '全国最低', '手續費', '任何地方', '免費辦理', '賠償差價', '客服微信', '即時走勢', '分鐘更多', '儲存格', '閃電下單', '使用指引', '觀念篇', '實戰篇', '理財寶碼', '占股本比重', '資料統計時間為', '統計天數', '統計區間', '股票代號', '股票代号', '筆價細勢', '名合計', '統計', '元買進', '買壹超', '買均價', '的日', '月的', '的分布圖', '的走勢圖', '成交量成交量', '均線外資投信主力', '均線外资投信主力', '均線外瓷投信主力', '隔日冲主力', '隔目冲主力', '主力地圆', '主力地园', '主力地图', '線大單券商主力地', '本益比红缘燈分俱', '大類存股好標的全'}
+
+
 def extract_wiki_topics(project_id: str) -> list[str]:
     topics: dict[str, int] = {}
-    for row in rows("SELECT content FROM chunks WHERE project_id=? LIMIT 500", (project_id,)):
-        text = row["content"].lower()
-        for word in re.findall(r'[\u4e00-\u9fff]{2,6}|[a-zA-Z]{3,}', text):
-            word = word.strip()
-            if len(word) >= 2:
-                topics[word] = topics.get(word, 0) + 1
+    for row in rows("SELECT content FROM chunks WHERE project_id=?", (project_id,)):
+        text = row["content"]
+        for term in re.findall(r'[\u4e00-\u9fff]{3,8}', text):
+            if term in NOISE_PHRASES:
+                continue
+            if term in INVESTMENT_KEYWORDS or any(kw in term for kw in INVESTMENT_KEYWORDS):
+                topics[term] = topics.get(term, 0) + 1
+        for term in re.findall(r'[A-Z]{2,6}', text):
+            if term in INVESTMENT_KEYWORDS:
+                topics[term] = topics.get(term, 0) + 1
     for row in rows("SELECT content FROM ai_knowledge WHERE project_id=? AND relation_type='file_summary'", (project_id,)):
         text = row["content"]
         for line in text.splitlines():
             line = line.strip().lstrip("#*-•1234567890.、）） ")
-            if 4 <= len(line) <= 40:
-                topics[line] = topics.get(line, 0) + 5
+            if 3 <= len(line) <= 60 and line not in NOISE_PHRASES:
+                topics[line] = topics.get(line, 0) + 10
     sorted_topics = sorted(topics.items(), key=lambda x: x[1], reverse=True)
     seen: set[str] = set()
     result: list[str] = []
     for topic, count in sorted_topics:
-        if count >= 2 and topic not in seen and len(result) < 30:
+        if count >= 3 and topic not in seen:
             seen.add(topic)
             result.append(topic)
     return result
@@ -2760,10 +2786,12 @@ def wiki_worker(project_id: str, job_id: str) -> None:
             sources_json = json.dumps([{"file": ev["source_file"], "page": ev["page_number"], "block": ev["block_id"]} for ev in evidence[:5]], ensure_ascii=False)
             prompt = f"""根據以下 evidence，為主題「{topic}」撰寫一段維基百科風格的知識條目。
 要求：
-1. 200-400 字
-2. 先給定義，再說明重要概念
-3. 使用繁體中文
-4. 不要編造 evidence 中沒有的資訊
+1. 300-600 字，內容要豐富完整
+2. 先給定義，再說明重要概念、原理、應用
+3. 如果有案例或數據，要包含進去
+4. 使用繁體中文
+5. 不要編造 evidence 中沒有的資訊
+6. 條目要獨立可讀，不需要看其他條目就能理解
 
 Evidence：
 {evidence_text}
