@@ -69,6 +69,31 @@ def config() -> dict[str, Any]:
     }
 
 
+class ServerUrlBody(BaseModel):
+    server_url: str
+
+
+@app.post("/api/config/server-url")
+def save_server_url(body: ServerUrlBody) -> dict[str, str]:
+    env_path = BASE_DIR / ".env"
+    lines = []
+    if env_path.exists():
+        lines = env_path.read_text("utf-8", errors="ignore").splitlines()
+    url = normalize_url(body.server_url)
+    new_lines = []
+    updated = False
+    for line in lines:
+        if line.startswith("SERVER_API_URL="):
+            new_lines.append(f"SERVER_API_URL={url}")
+            updated = True
+        else:
+            new_lines.append(line)
+    if not updated:
+        new_lines.append(f"SERVER_API_URL={url}")
+    env_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+    return {"message": "Server 位址已保存，請重新啟動 User 服務生效", "server_url": url}
+
+
 class LoginBody(BaseModel):
     username: str
     password: str

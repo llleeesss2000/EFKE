@@ -2771,6 +2771,25 @@ INVESTMENT_KEYWORDS = {
 NOISE_PHRASES = {'重要內容摘錄', '如下圖所示', '從圖中可以看出', '如下所示', '也就是說', '換句話說', '事實上', '例如', '比如', '就是說', '意思是', '基本上', '一般來說', '通常', '其實', '所以', '因為', '那麼', '這樣', '這樣的話', '資料來源', '詳見圖', '上圖說明', '自選返回', '擴展關聯', '點擊訂購', '版新用戶', '期貨開戶', '不限資金', '直接申請', '全国最低', '手續費', '任何地方', '免費辦理', '賠償差價', '客服微信', '即時走勢', '分鐘更多', '儲存格', '閃電下單', '使用指引', '觀念篇', '實戰篇', '理財寶碼', '占股本比重', '資料統計時間為', '統計天數', '統計區間', '股票代號', '股票代号', '筆價細勢', '名合計', '統計', '元買進', '買壹超', '買均價', '的日', '月的', '的分布圖', '的走勢圖', '成交量成交量', '均線外資投信主力', '均線外资投信主力', '均線外瓷投信主力', '隔日冲主力', '隔目冲主力', '主力地圆', '主力地园', '主力地图', '線大單券商主力地', '本益比红缘燈分俱', '大類存股好標的全'}
 
 
+KG_PATTERNS = {
+    "company": [
+        r"台積電|中信金|台泥|聯詠|華碩|鴻海|新普|順達科|永豐金|元大金|台新金|第一金|兆豐金|宏達電|友達|群創",
+    ],
+    "person": [
+        r"陳重銘|劉益杰|林明樟|獨孤求敗|蔡明介|施崇棠|蕭明道|朱紀中|郭恭克",
+    ],
+    "indicator": [
+        r"本益比|殖利率|毛利率|營業利益率|淨利率|EPS|ROE|ROA|PBR|KD|MACD|RSI|VIX",
+    ],
+    "strategy": [
+        r"存股|當沖|波段|停損|停利|定期定額|價值投資|成長投資|股息投資|分散風險|複利|危機入市",
+    ],
+    "concept": [
+        r"K線|均線|布林通道|趨勢線|支撐|壓力|缺口|型態|反轉|黃金交叉|死亡交叉|超買|超賣|填權息|除權息|融資|融券|三大法人|籌碼|技術分析|基本面|景氣循環",
+    ],
+}
+
+
 def extract_wiki_topics(project_id: str) -> list[str]:
     topics: dict[str, int] = {}
     for row in rows("SELECT content FROM chunks WHERE project_id=?", (project_id,)):
@@ -2991,12 +3010,13 @@ def generate_knowledge_graph(project_id: str) -> dict[str, Any]:
     entity_map: dict[str, dict[str, Any]] = {}
     for row in rows("SELECT content, file_id FROM chunks WHERE project_id=?", (project_id,)):
         text = row["content"]
-        for etype, pattern in KG_ENTITY_TYPES.items():
-            for match in re.finditer(pattern, text):
-                name = match.group()
-                if name not in entity_map:
-                    entity_map[name] = {"name": name, "type": etype, "relations": set(), "chunks": set()}
-                entity_map[name]["chunks"].add(row["file_id"])
+        for etype, patterns in KG_PATTERNS.items():
+            for pattern in patterns:
+                for match in re.finditer(pattern, text):
+                    name = match.group()
+                    if name not in entity_map:
+                        entity_map[name] = {"name": name, "type": etype, "relations": set(), "chunks": set()}
+                    entity_map[name]["chunks"].add(row["file_id"])
     for name1, data1 in entity_map.items():
         for name2, data2 in entity_map.items():
             if name1 != name2 and len(data1["chunks"] & data2["chunks"]) >= 2:

@@ -145,7 +145,7 @@ async function switchView(name) {
   document.querySelectorAll(".view").forEach((v) => v.classList.add("hidden"));
   document.querySelectorAll(".rail button").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
   $("#" + name).classList.remove("hidden");
-  $("#viewTitle").textContent = { query: "查詢", wiki: "知識維基", history: "查詢歷史", workflow: "處理流程", kg: "知識圖譜", projects: "專案管理", review: "書籍校閱", reader: "書籍閱讀器", upload: "檔案上傳", files: "檔案 / 書籍管理", jobs: "工作進度", settings: "系統設定", accounts: "帳號管理" }[name];
+  $("#viewTitle").textContent = { query: "查詢", wiki: "知識維基", history: "查詢歷史", kg: "知識圖譜", projects: "專案管理", review: "書籍校閱", reader: "書籍閱讀器", upload: "檔案上傳", files: "檔案 / 書籍管理", jobs: "工作進度", settings: "系統設定", accounts: "帳號管理" }[name];
   if (name === "wiki") {
     await loadWikiProjects();
     await loadWiki();
@@ -153,12 +153,6 @@ async function switchView(name) {
   }
   if (name === "history") {
     await loadHistory();
-    return;
-  }
-  if (name === "workflow") {
-    const opts = state.projects.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join("");
-    $("#workflowProjectSelect").innerHTML = opts || '<option value="">尚未建立專案</option>';
-    await loadWorkflow();
     return;
   }
   if (name === "kg") {
@@ -265,6 +259,10 @@ async function refresh() {
         for (const opt of select.options) { if (opt.value === settings.llm_model) { opt.selected = true; found = true; break; } }
         if (!found) { const opt = document.createElement("option"); opt.value = settings.llm_model; opt.textContent = settings.llm_model; opt.selected = true; select.appendChild(opt); }
       }
+    } catch (_) {}
+    try {
+      const serverUrl = config.server_api_url || "";
+      if (serverUrl) $("#serverApiUrl").value = serverUrl;
     } catch (_) {}
     state.projects = await api("/api/projects");
     const summaries = await Promise.all(state.projects.map(async (p) => {
@@ -1090,6 +1088,18 @@ $("#deleteUserBtn").addEventListener("click", async () => {
     refresh();
   } catch (err) {
     $("#editUserMsg").textContent = "刪除失敗：" + err.message;
+  }
+});
+
+$("#serverForm")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const url = $("#serverApiUrl").value;
+  if (!url) { $("#serverSaveMsg").textContent = "請輸入 Server 位址"; return; }
+  try {
+    await api("/api/config/server-url", { method: "POST", body: JSON.stringify({ server_url: url }) });
+    $("#serverSaveMsg").textContent = "✓ Server 位址已保存，請重新啟動 User 服務生效";
+  } catch (err) {
+    $("#serverSaveMsg").textContent = "儲存失敗：" + err.message;
   }
 });
 

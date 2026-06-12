@@ -76,7 +76,6 @@
         <button data-view="query" class="active">查詢</button>
         <button data-view="wiki">維基</button>
         <button data-view="history">歷史</button>
-        <button data-view="workflow">流程</button>
         <button data-view="kg">圖譜</button>
         <button data-view="projects">專案</button>
         <button data-view="review">校閱</button>
@@ -395,7 +394,15 @@
         <div class="settings-grid">
           <section>
             <h3>Server 連線</h3>
-            <p class="setting-note">英文 key 是程式讀取的 .env 變數，中文說明描述用途與修改位置。</p>
+            <p class="setting-note">設定 Server 位址，修改後需重新啟動 User 服務。</p>
+            <form id="serverForm" class="llm-form">
+              <label>Server API 位址
+                <input id="serverApiUrl" placeholder="http://192.168.31.36:8000" />
+              </label>
+              <button type="submit">儲存 Server 設定</button>
+            </form>
+            <p id="serverSaveMsg" class="warn"></p>
+            <h3 style="margin-top:20px">目前連線</h3>
             <dl id="configList"></dl>
           </section>
           <section>
@@ -408,13 +415,13 @@
                   <option value="openai">OpenAI</option>
                   <option value="anthropic">Anthropic (Claude)</option>
                   <option value="google">Google (Gemini)</option>
-            <option value="deepseek">DeepSeek</option>
-            <option value="nvidia">NVIDIA NIM</option>
-            <option value="openai-compat">其他 OpenAI 相容 API</option>
-          </select>
-        </label>
-        <label>API 位址
-          <input id="llmBaseUrl" name="base_url" placeholder="http://127.0.0.1:11434" />
+                  <option value="deepseek">DeepSeek</option>
+                  <option value="nvidia">NVIDIA NIM</option>
+                  <option value="openai-compat">其他 OpenAI 相容 API</option>
+                </select>
+              </label>
+              <label>API 位址
+                <input id="llmBaseUrl" name="base_url" placeholder="http://127.0.0.1:11434" />
               </label>
               <label>API Key（Ollama 可留空）
                 <input id="llmApiKey" name="api_key" type="password" placeholder="sk-..." />
