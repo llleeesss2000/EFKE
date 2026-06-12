@@ -1,4 +1,57 @@
-const UI_VERSION = "review-tabs-20260604-0105";
+const UI_VERSION = "multi-lang-20260613";
+
+const i18n = {
+  "zh-TW": {
+    query: "查詢", wiki: "維基", history: "歷史", projects: "專案管理", review: "校閱", reader: "閱讀器",
+    upload: "檔案上傳", files: "檔案管理", jobs: "工作進度", settings: "系統設定", accounts: "帳號管理",
+    searchPlaceholder: "輸入你的問題...", searchBtn: "查詢", answerMode: "回答模式", researchMode: "研究模式",
+    answerModeDesc: "快速整理結論，附上來源", researchModeDesc: "先列證據，再比較，最後給結論",
+    searchScope: "搜尋範圍：", allProjects: "全部", login: "登入", logout: "登出",
+    wikiTitle: "知識維基", wikiSub: "AI 自動整理專案文件，產生維基百科風格的知識頁面",
+    historyTitle: "查詢歷史", historySub: "查看過去的查詢紀錄，可重新執行或比較",
+    noHistory: "還沒有查詢紀錄", noHistorySub: "查詢後會自動記錄在這裡",
+    generating: "產生/更新", deleting: "刪除", refresh: "重整",
+    processing: "處理中...", paused: "已暫停", doneText: "✓ 完成", failedText: "✗ 失敗", stoppedText: "已停止",
+    answer: "回答", evidence: "Evidence Package", sources: "來源",
+    settingsLLM: "LLM 設定", settingsServer: "Server 連線", settingsSystem: "系統操作",
+    testConnection: "測試連線", testQuery: "測試問答", saveLLM: "儲存 LLM 設定",
+    selectModel: "選擇模型", enterModel: "或手動輸入模型名稱", testFirst: "先測試連線以載入模型列表",
+    backup: "建立備份", rebuild: "重建索引",
+    userManage: "使用者列表", addUser: "新增帳號", editUser: "編輯使用者",
+    role: "角色", password: "密碼", username: "帳號",
+  },
+  "en": {
+    query: "Query", wiki: "Wiki", history: "History", projects: "Projects", review: "Review", reader: "Reader",
+    upload: "Upload", files: "Files", jobs: "Jobs", settings: "Settings", accounts: "Accounts",
+    searchPlaceholder: "Enter your question...", searchBtn: "Search", answerMode: "Answer", researchMode: "Research",
+    answerModeDesc: "Quick summary with sources", researchModeDesc: "Evidence first, then compare, then conclusion",
+    searchScope: "Search scope: ", allProjects: "All", login: "Login", logout: "Logout",
+    wikiTitle: "Knowledge Wiki", wikiSub: "AI organizes project documents into Wikipedia-style knowledge pages",
+    historyTitle: "Search History", historySub: "View past queries, re-execute or compare",
+    noHistory: "No search history yet", noHistorySub: "Queries will be recorded here automatically",
+    generating: "Generate/Update", deleting: "Delete", refresh: "Refresh",
+    processing: "Processing...", paused: "Paused", doneText: "✓ Done", failedText: "✗ Failed", stoppedText: "Stopped",
+    answer: "Answer", evidence: "Evidence Package", sources: "Sources",
+    settingsLLM: "LLM Settings", settingsServer: "Server Connection", settingsSystem: "System Operations",
+    testConnection: "Test Connection", testQuery: "Test Query", saveLLM: "Save LLM Settings",
+    selectModel: "Select Model", enterModel: "Or enter model name manually", testFirst: "Test connection first to load model list",
+    backup: "Backup", rebuild: "Rebuild Index",
+    userManage: "User List", addUser: "Add User", editUser: "Edit User",
+    role: "Role", password: "Password", username: "Username",
+  },
+};
+
+let currentLang = localStorage.getItem("ef_lang") || "zh-TW";
+
+function t(key) { return i18n[currentLang]?.[key] || i18n["zh-TW"][key] || key; }
+
+function applyLang() {
+  document.querySelectorAll("[data-i18n]").forEach((el) => {
+    const key = el.dataset.i18n;
+    if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") el.placeholder = t(key);
+    else el.textContent = t(key);
+  });
+}
 
 let state = {
   token: localStorage.getItem("ef_token") || "",
@@ -92,10 +145,26 @@ async function switchView(name) {
   document.querySelectorAll(".view").forEach((v) => v.classList.add("hidden"));
   document.querySelectorAll(".rail button").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
   $("#" + name).classList.remove("hidden");
-  $("#viewTitle").textContent = { query: "查詢", wiki: "知識維基", projects: "專案管理", review: "書籍校閱", reader: "書籍閱讀器", upload: "檔案上傳", files: "檔案 / 書籍管理", jobs: "工作進度", settings: "系統設定", accounts: "帳號管理" }[name];
+  $("#viewTitle").textContent = { query: "查詢", wiki: "知識維基", history: "查詢歷史", workflow: "處理流程", kg: "知識圖譜", projects: "專案管理", review: "書籍校閱", reader: "書籍閱讀器", upload: "檔案上傳", files: "檔案 / 書籍管理", jobs: "工作進度", settings: "系統設定", accounts: "帳號管理" }[name];
   if (name === "wiki") {
     await loadWikiProjects();
     await loadWiki();
+    return;
+  }
+  if (name === "history") {
+    await loadHistory();
+    return;
+  }
+  if (name === "workflow") {
+    const opts = state.projects.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join("");
+    $("#workflowProjectSelect").innerHTML = opts || '<option value="">尚未建立專案</option>';
+    await loadWorkflow();
+    return;
+  }
+  if (name === "kg") {
+    const opts = state.projects.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join("");
+    $("#kgProjectSelect").innerHTML = opts || '<option value="">尚未建立專案</option>';
+    await loadKG();
     return;
   }
   if (name === "review") {
@@ -143,6 +212,7 @@ function renderProjects() {
 }
 
 state.selectedProjects = new Set();
+state.sessionId = localStorage.getItem("ef_session_id") || null;
 
 function renderProjectChips() {
   const container = $("#projectChips");
@@ -635,6 +705,28 @@ $("#setupForm").addEventListener("submit", async (event) => {
   }
 });
 
+$("#menuToggle").addEventListener("click", () => {
+  document.querySelector(".rail").classList.toggle("open");
+});
+$("#railOverlay").addEventListener("click", () => {
+  document.querySelector(".rail").classList.remove("open");
+});
+
+document.querySelectorAll(".rail button[data-view]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelector(".rail").classList.remove("open");
+  });
+});
+
+document.querySelectorAll(".lang-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    currentLang = btn.dataset.lang;
+    localStorage.setItem("ef_lang", currentLang);
+    document.querySelectorAll(".lang-btn").forEach((b) => b.classList.toggle("active", b.dataset.lang === currentLang));
+    applyLang();
+  });
+});
+
 const skipSetup = false;
 checkSetup().then((v) => { if (v) throw "setup"; }).catch(() => {});
 
@@ -925,13 +1017,17 @@ $("#queryForm").addEventListener("submit", async (event) => {
   const query = new FormData(event.target).get("query");
   if (!query.trim()) return;
   const selected = state.selectedProjects.size > 0 ? Array.from(state.selectedProjects) : null;
-  const body = { query, mode: state.mode, project_ids: selected, top_k: 10, user: state.user };
+  const body = { query, mode: state.mode, project_ids: selected, top_k: 10, user: state.user, session_id: state.sessionId };
   const modeLabel = state.mode === "research" ? "研究模式" : "回答模式";
   $("#answerModeTag").textContent = modeLabel;
   $("#answerText").textContent = "查詢中...";
   $("#queryResult").classList.remove("hidden");
   try {
     const result = await api("/api/rag/query", { method: "POST", body: JSON.stringify(body) });
+    if (result.session_id) {
+      state.sessionId = result.session_id;
+      localStorage.setItem("ef_session_id", result.session_id);
+    }
     $("#answerText").textContent = result.answer;
     renderEvidence(result.evidence);
     $("#evidenceCount").textContent = `(${result.evidence.length} 則)`;
@@ -1069,6 +1165,132 @@ $("#llmForm").addEventListener("submit", async (event) => {
   }
 });
 
+async function loadKG() {
+  const projectId = $("#kgProjectSelect").value;
+  if (!projectId) return;
+  try {
+    const data = await api(`/api/kg/${projectId}`);
+    if (data.entities && data.entities.length) {
+      const typeLabels = { company: "公司", person: "人物", indicator: "指標", strategy: "策略" };
+      $("#kgContent").innerHTML = `<div class="kg-entity-grid">${data.entities.map((e) => {
+        let rels = [];
+        try { rels = JSON.parse(e.relations_json || "[]"); } catch (_) {}
+        const relsHtml = rels.length ? `<div class="kg-entity-relations">相關：${rels.slice(0, 5).map((r) => `<span>${escapeHtml(r)}</span>`).join("、")}</div>` : "";
+        return `<div class="kg-entity-card">
+          <div class="kg-entity-name">${escapeHtml(e.entity_name)}</div>
+          <span class="kg-entity-type ${escapeHtml(e.entity_type)}">${typeLabels[e.entity_type] || e.entity_type}</span>
+          ${relsHtml}
+        </div>`;
+      }).join("")}</div>`;
+    } else {
+      $("#kgContent").innerHTML = '<div class="workflow-empty"><div class="job-empty-icon">🕸️</div><p>尚未產生知識圖譜</p></div>';
+    }
+  } catch (err) {
+    $("#kgContent").innerHTML = `<div class="workflow-empty"><p>載入失敗：${escapeHtml(err.message)}</p></div>`;
+  }
+}
+
+$("#kgRefreshBtn").addEventListener("click", loadKG);
+
+$("#kgGenerateBtn").addEventListener("click", async () => {
+  const projectId = $("#kgProjectSelect").value;
+  if (!projectId) { $("#kgMsg").textContent = "請先選擇專案"; return; }
+  $("#kgMsg").textContent = "正在產生知識圖譜...";
+  try {
+    const data = await api(`/api/kg/generate/${projectId}`, { method: "POST", body: "{}" });
+    $("#kgMsg").textContent = `✓ ${data.message}`;
+    loadKG();
+  } catch (err) {
+    $("#kgMsg").textContent = "✗ 產生失敗：" + err.message;
+  }
+});
+
+const workflowStages = [
+  { key: "upload", name: "檔案上傳" },
+  { key: "metadata", name: "Metadata 建立" },
+  { key: "layout_analysis", name: "版面分析" },
+  { key: "ocr", name: "OCR 文字辨識" },
+  { key: "image_extract", name: "圖片擷取" },
+  { key: "image_caption", name: "圖片說明" },
+  { key: "image_embedding", name: "圖片向量化" },
+  { key: "table_extract", name: "表格抽取" },
+  { key: "formula_extract", name: "公式抽取" },
+  { key: "chunk", name: "文字切塊" },
+  { key: "text_embedding", name: "文字索引" },
+  { key: "rerank_ready", name: "重排準備" },
+  { key: "index", name: "建立搜尋索引" },
+  { key: "ai_suggestion", name: "AI 自動整理" },
+  { key: "done", name: "完成" },
+];
+
+async function loadWorkflow() {
+  const projectId = $("#workflowProjectSelect").value;
+  if (!projectId) return;
+  try {
+    const jobs = await api("/api/jobs");
+    const projectJobs = jobs.filter((j) => j.project_id === projectId);
+    if (!projectJobs.length) {
+      $("#workflowPipeline").innerHTML = '<div class="workflow-empty"><div class="job-empty-icon">⚙️</div><p>此專案尚無處理紀錄</p></div>';
+      return;
+    }
+    const latestJob = projectJobs[0];
+    const stageMap = {};
+    (latestJob.stages || []).forEach((s) => { stageMap[s.stage] = s; });
+    $("#workflowPipeline").innerHTML = `<div class="workflow-flow">${workflowStages.map((ws, i) => {
+      const s = stageMap[ws.key];
+      const status = s ? s.status : "queued";
+      return `<div class="workflow-stage ${status}">
+        <span class="workflow-stage-num">${i + 1}</span>
+        <span class="workflow-stage-name">${ws.name}</span>
+        <span class="workflow-stage-status ${status}">${statusLabels[status] || status}</span>
+      </div>`;
+    }).join("")}</div>`;
+  } catch (err) {
+    $("#workflowPipeline").innerHTML = `<div class="workflow-empty"><p>載入失敗：${escapeHtml(err.message)}</p></div>`;
+  }
+}
+
+$("#workflowRefreshBtn").addEventListener("click", loadWorkflow);
+
+async function loadHistory() {
+  try {
+    const history = await api("/api/history");
+    if (history.length) {
+      $("#historyList").innerHTML = history.map((h) => {
+        let answer = h.answer || "";
+        answer = answer.replace(/^## .+$/gm, "").replace(/\*\*/g, "").trim();
+        return `<div class="history-item" data-history-id="${escapeHtml(h.id)}">
+          <div class="history-item-header">
+            <span class="history-item-query">${escapeHtml(h.query)}</span>
+            <span class="history-item-meta">${escapeHtml(h.mode)} · ${escapeHtml(h.timestamp?.slice(0, 16) || "")}</span>
+          </div>
+          <div class="history-item-preview">${escapeHtml(answer.slice(0, 200))}</div>
+        </div>`;
+      }).join("");
+      document.querySelectorAll(".history-item").forEach((item) => {
+        item.addEventListener("click", async () => {
+          const hid = item.dataset.historyId;
+          try {
+            const data = await api(`/api/export/${hid}.json`);
+            state.mode = data.mode || "answer";
+            document.querySelectorAll(".pill[data-mode]").forEach((b) => b.classList.toggle("active", b.dataset.mode === state.mode));
+            document.querySelector("textarea[name='query']").value = data.query || "";
+            switchView("query");
+            $("#answerText").textContent = data.answer || "";
+            $("#queryResult").classList.remove("hidden");
+            renderEvidence(data.evidence || []);
+          } catch (_) {}
+        });
+      });
+    } else {
+      $("#historyList").innerHTML = "";
+      $("#historyEmpty").classList.remove("hidden");
+    }
+  } catch (err) {
+    $("#historyList").innerHTML = `<p class="warn">載入失敗：${escapeHtml(err.message)}</p>`;
+  }
+}
+
 async function loadWikiProjects() {
   try {
     state.projects = await api("/api/projects");
@@ -1083,6 +1305,9 @@ async function loadWiki() {
   try {
     const data = await api(`/api/wiki/${projectId}`);
     if (data.pages && data.pages.length) {
+      const allTitles = data.pages.map((p) => p.title);
+      const titleToSlug = {};
+      data.pages.forEach((p) => { titleToSlug[p.title] = "wiki-" + p.id.slice(0, 8); });
       const tocHtml = data.pages.map((page) => {
         const slug = "wiki-" + page.id.slice(0, 8);
         return `<a class="wiki-toc-item" data-wiki-target="${slug}">${escapeHtml(page.title)}</a>`;
@@ -1097,20 +1322,35 @@ async function loadWiki() {
         const modelTag = page.model_name ? `<span class="wiki-model-tag">${escapeHtml(page.model_name)}</span>` : "";
         const imagesHtml = images.length ? `<div class="wiki-page-images">${images.map((img) => `<img src="/api/assets/${escapeHtml(img.id)}" alt="${escapeHtml(img.caption)}" loading="lazy" />`).join("")}</div>` : "";
         const sourcesHtml = sources.length ? `<div class="wiki-page-sources">${sources.map((s) => `<span>📄 ${escapeHtml(s.file)} 頁 ${s.page}</span>`).join("")}</div>` : "";
-        const body = escapeHtml(page.content).replace(/^## (.+)$/gm, "<h3>$1</h3").replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/^- (.+)$/gm, "<li>$1</li>").replace(/(<li>.*<\/li>)/gs, "<ul>$1</ul>");
+        let body = escapeHtml(page.content).replace(/^## (.+)$/gm, "<h3>$1</h3>").replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/^- (.+)$/gm, "<li>$1</li>").replace(/(<li>.*<\/li>)/gs, "<ul>$1</ul>");
+        const sortedTitles = allTitles.filter((t) => t !== page.title).sort((a, b) => b.length - a.length);
+        const linkedTerms = [];
+        sortedTitles.forEach((title) => {
+          const targetSlug = titleToSlug[title];
+          const escaped = escapeHtml(title);
+          if (body.includes(escaped) && !linkedTerms.includes(escaped)) {
+            const regex = new RegExp(escaped.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g");
+            body = body.replace(regex, `<a class="wiki-link" data-wiki-target="${targetSlug}">${escaped}</a>`);
+            linkedTerms.push(escaped);
+          }
+        });
+        const relatedHtml = linkedTerms.length ? `<div class="wiki-related"><strong>相關條目：</strong>${linkedTerms.map((t) => `<a class="wiki-link" data-wiki-target="${titleToSlug[allTitles.find((tt) => escapeHtml(tt) === t)] || ""}">${t}</a>`).join("、")}</div>` : "";
         return `<div class="wiki-page" id="${slug}">
           <h2>${escapeHtml(page.title)} ${modelTag}</h2>
           <div class="wiki-page-body">${body}</div>
           ${imagesHtml}
           ${sourcesHtml}
+          ${relatedHtml}
         </div>`;
       }).join("");
-      document.querySelectorAll(".wiki-toc-item").forEach((item) => {
-        item.addEventListener("click", () => {
+      document.querySelectorAll(".wiki-toc-item, .wiki-link").forEach((item) => {
+        item.addEventListener("click", (e) => {
+          e.preventDefault();
           const target = document.getElementById(item.dataset.wikiTarget);
           if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
           document.querySelectorAll(".wiki-toc-item").forEach((t) => t.classList.remove("active"));
-          item.classList.add("active");
+          const tocItem = document.querySelector(`.wiki-toc-item[data-wiki-target="${item.dataset.wikiTarget}"]`);
+          if (tocItem) tocItem.classList.add("active");
         });
       });
     } else {

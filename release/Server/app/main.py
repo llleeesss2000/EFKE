@@ -319,6 +319,24 @@ def init_db() -> None:
                 user TEXT NOT NULL,
                 timestamp TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS conversations (
+                id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                project_ids TEXT,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS knowledge_graph (
+                id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                entity_name TEXT NOT NULL,
+                entity_type TEXT NOT NULL,
+                relations_json TEXT NOT NULL DEFAULT '[]',
+                source_chunks TEXT NOT NULL DEFAULT '[]',
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(project_id) REFERENCES projects(id)
+            );
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
@@ -1963,7 +1981,7 @@ def search_evidence(query: str, project_ids: list[str] | None, top_k: int = 10) 
     return results
 
 
-def answer_from_evidence(query: str, mode: str, evidence: list[dict[str, Any]]) -> str:
+def answer_from_evidence(query: str, mode: str, evidence: list[dict[str, Any]], context: str = "") -> str:
     if not evidence:
         return "資料庫中未找到足夠證據。"
     evidence_block = ""
@@ -1977,7 +1995,7 @@ def answer_from_evidence(query: str, mode: str, evidence: list[dict[str, Any]]) 
 4. 標示不確定性（高/中/低）
 5. 只根據提供的 Evidence 回答，不要補充外部知識
 6. 找不到足夠證據時明確說「證據不足」"""
-        user_prompt = f"使用者問題：{query}\n\n以下是從知識庫搜尋到的 Evidence：\n\n{evidence_block}\n請根據以上 Evidence 整理回答。"
+        user_prompt = f"{context}使用者問題：{query}\n\n以下是從知識庫搜尋到的 Evidence：\n\n{evidence_block}\n請根據以上 Evidence 整理回答。"
     else:
         system_prompt = """你是 Evidence-First 知識整理助手。使用者會給你一組搜尋到的 Evidence，你必須：
 1. 根據 Evidence 直接回答問題
@@ -1985,7 +2003,7 @@ def answer_from_evidence(query: str, mode: str, evidence: list[dict[str, Any]]) 
 3. 必須引用來源（文件名稱和頁碼）
 4. 只根據提供的 Evidence 回答，不要補充外部知識
 5. 找不到足夠證據時說「資料庫中未找到足夠證據」"""
-        user_prompt = f"使用者問題：{query}\n\n以下是從知識庫搜尋到的 Evidence：\n\n{evidence_block}\n請直接回答。"
+        user_prompt = f"{context}使用者問題：{query}\n\n以下是從知識庫搜尋到的 Evidence：\n\n{evidence_block}\n請直接回答。"
     llm_answer = call_llm_with(system_prompt, user_prompt)
     if llm_answer:
         sources = "\n".join(f"- {ev['source_file']} 頁 {ev['page_number']} 區塊 {ev['block_id']}" for ev in evidence[:5])
@@ -2020,6 +2038,7 @@ class QueryBody(BaseModel):
     project_ids: list[str] | None = None
     top_k: int = 10
     user: str = "admin"
+    session_id: str | None = None
 
 
 class SettingBody(BaseModel):
@@ -2624,12 +2643,22 @@ def search(body: QueryBody) -> dict[str, Any]:
 
 @app.post("/rag/query")
 def rag_query(body: QueryBody) -> dict[str, Any]:
+    session_id = body.session_id or str(uuid.uuid4())
+    history = rows("SELECT role, content FROM conversations WHERE session_id=? ORDER BY created_at DESC LIMIT 6", (session_id,))
+    history.reverse()
+    context_block = ""
+    if history:
+        context_block = "之前的對話：\n" + "\n".join(f"{'使用者' if h['role']=='user' else '助手'}：{h['content'][:200]}" for h in history) + "\n\n"
+    with db() as conn:
+        conn.execute("INSERT INTO conversations VALUES (?,?,?,?,?,?)", (str(uuid.uuid4()), session_id, "user", body.query, json.dumps(body.project_ids or []), now()))
     evidence = search_evidence(body.query, body.project_ids, body.top_k)
-    answer = answer_from_evidence(body.query, body.mode, evidence)
+    answer = answer_from_evidence(body.query, body.mode, evidence, context=context_block)
+    with db() as conn:
+        conn.execute("INSERT INTO conversations VALUES (?,?,?,?,?,?)", (str(uuid.uuid4()), session_id, "assistant", answer[:2000], json.dumps(body.project_ids or []), now()))
     hid = str(uuid.uuid4())
     with db() as conn:
         conn.execute("INSERT INTO search_history VALUES (?,?,?,?,?,?,?,?,?)", (hid, body.query, ",".join(body.project_ids or []), body.mode, json.dumps({"top_k": body.top_k}), json.dumps(evidence, ensure_ascii=False), answer, body.user, now()))
-    return {"id": hid, "query": body.query, "mode": body.mode, "answer": answer, "evidence": evidence}
+    return {"id": hid, "session_id": session_id, "query": body.query, "mode": body.mode, "answer": answer, "evidence": evidence}
 
 
 @app.get("/evidence/{chunk_id}")
@@ -2933,6 +2962,57 @@ def delete_wiki(project_id: str) -> dict[str, str]:
     with db() as conn:
         conn.execute("DELETE FROM wiki_pages WHERE project_id=?", (project_id,))
     return {"message": "維基已刪除"}
+
+
+KG_ENTITY_TYPES = {
+    "company": r"[\u53f0\u7a4d\u96fb\u4e2d\u4fe1\u91d1\u53f0\u6ce5\u806f\u8a6d\u83ef\u78a7\u6d77\u9d3c\u8c6c\u6c38\u8c50\u5143\u5927\u91d1\u7b2c\u4e00\u91d1\u53f0\u65b0\u91d1\u5146\u8c50\u91d1]",
+    "person": r"[\u9673\u91cd\u9293\u5289\u76ca\u6770\u7363\u8c79\u8ca2\u52d2\u7363\u8c79\u738b\u660e\u9053\u738b\u6770\u97f3\u7f57\u5a01]",
+    "indicator": r"[\u672c\u76ca\u6bd4\u6bcb\u5229\u7387EPSROEROA\u5747\u7ddaKD|MACD|RSI|\u5e03\u6797\u901a\u9053]",
+    "strategy": r"[\u5b58\u80a1\u770b\u591a\u770b\u7a7a\u7576\u6c96\u6ce2\u6bb5\u505c\u640d\u505c\u5229\u7701\u7d04\u5b9a\u984d]",
+}
+
+
+@app.get("/kg/{project_id}")
+def get_knowledge_graph(project_id: str) -> dict[str, Any]:
+    project = one("SELECT * FROM projects WHERE id=?", (project_id,))
+    if not project:
+        raise HTTPException(404, "找不到專案")
+    entities = rows("SELECT * FROM knowledge_graph WHERE project_id=? ORDER BY entity_type, entity_name", (project_id,))
+    return {"project": project, "entities": entities, "total": len(entities)}
+
+
+@app.post("/kg/generate/{project_id}")
+def generate_knowledge_graph(project_id: str) -> dict[str, Any]:
+    project = one("SELECT * FROM projects WHERE id=?", (project_id,))
+    if not project:
+        raise HTTPException(404, "找不到專案")
+    with db() as conn:
+        conn.execute("DELETE FROM knowledge_graph WHERE project_id=?", (project_id,))
+    entity_map: dict[str, dict[str, Any]] = {}
+    for row in rows("SELECT content, file_id FROM chunks WHERE project_id=?", (project_id,)):
+        text = row["content"]
+        for etype, pattern in KG_ENTITY_TYPES.items():
+            for match in re.finditer(pattern, text):
+                name = match.group()
+                if name not in entity_map:
+                    entity_map[name] = {"name": name, "type": etype, "relations": set(), "chunks": set()}
+                entity_map[name]["chunks"].add(row["file_id"])
+    for name1, data1 in entity_map.items():
+        for name2, data2 in entity_map.items():
+            if name1 != name2 and len(data1["chunks"] & data2["chunks"]) >= 2:
+                data1["relations"].add(name2)
+    created = 0
+    with db() as conn:
+        for name, data in entity_map.items():
+            if len(data["chunks"]) >= 2:
+                conn.execute(
+                    "INSERT INTO knowledge_graph VALUES (?,?,?,?,?,?,?)",
+                    (str(uuid.uuid4()), project_id, name, data["type"],
+                     json.dumps(list(data["relations"])[:20], ensure_ascii=False),
+                     json.dumps(list(data["chunks"])[:10]), now()),
+                )
+                created += 1
+    return {"message": f"知識圖譜已產生：{created} 個實體", "entities": created}
 
 
 @app.post("/admin/rebuild")

@@ -299,6 +299,16 @@ async def delete_wiki(req: Request, project_id: str) -> Any:
     return await proxy_request("DELETE", f"/wiki/{project_id}", token=extract_token(req))
 
 
+@app.get("/api/kg/{project_id}")
+async def get_kg(req: Request, project_id: str) -> Any:
+    return await proxy_request("GET", f"/kg/{project_id}", token=extract_token(req))
+
+
+@app.post("/api/kg/generate/{project_id}")
+async def generate_kg(req: Request, project_id: str) -> Any:
+    return await proxy_request("POST", f"/kg/generate/{project_id}", token=extract_token(req))
+
+
 @app.post("/api/admin/rebuild")
 async def rebuild(req: Request) -> Any:
     return await proxy_request("POST", "/admin/rebuild", token=extract_token(req))
