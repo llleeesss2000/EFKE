@@ -145,7 +145,7 @@ async function switchView(name) {
   document.querySelectorAll(".view").forEach((v) => v.classList.add("hidden"));
   document.querySelectorAll(".rail button").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
   $("#" + name).classList.remove("hidden");
-  $("#viewTitle").textContent = { query: "查詢", wiki: "知識維基", history: "查詢歷史", kg: "知識圖譜", projects: "專案管理", review: "書籍校閱", reader: "書籍閱讀器", upload: "檔案上傳", files: "檔案 / 書籍管理", jobs: "工作進度", settings: "系統設定", accounts: "帳號管理" }[name];
+  $("#viewTitle").textContent = { query: "查詢", wiki: "知識維基", history: "查詢歷史", kg: "知識圖譜", projects: "專案管理", review: "書籍校閱", reader: "書籍閱讀器", upload: "上傳與處理", files: "檔案 / 書籍管理", settings: "系統設定", accounts: "帳號管理" }[name];
   if (name === "wiki") {
     await loadWikiProjects();
     await loadWiki();

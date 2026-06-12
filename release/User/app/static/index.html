@@ -81,7 +81,6 @@
         <button data-view="review">校閱</button>
         <button data-view="upload">上傳</button>
         <button data-view="files">檔案</button>
-        <button data-view="jobs">進度</button>
         <button data-view="settings">設定</button>
         <button data-view="accounts">帳號</button>
       </nav>
@@ -319,8 +318,8 @@
 
       <section id="upload" class="view hidden">
         <div class="upload-hero">
-          <h2>上傳檔案</h2>
-          <p class="query-hero-sub">支援 PDF、EPUB、TXT、JPG、JPEG、PNG</p>
+          <h2>上傳與處理</h2>
+          <p class="query-hero-sub">上傳檔案並查看處理進度</p>
         </div>
         <div class="upload-card">
           <div class="upload-card-header">
@@ -328,8 +327,8 @@
             <div class="upload-options">
               <select id="uploadProject" name="project_id" required></select>
               <select name="duplicate_strategy">
-                <option value="skip">重複檔案：跳過</option>
-                <option value="new_version">重複檔案：建立新版本</option>
+                <option value="skip">重複：跳過</option>
+                <option value="new_version">重複：新版本</option>
               </select>
             </div>
           </div>
@@ -365,18 +364,15 @@
           <div id="folderProgressDetail" class="progress-detail"></div>
         </div>
         <p id="uploadMsg" class="warn"></p>
-      </section>
-
-      <section id="jobs" class="view hidden">
-        <div class="jobs-header">
-          <h2>工作進度</h2>
-          <p class="query-hero-sub">上傳的檔案會在背景自動處理，可關閉瀏覽器</p>
-        </div>
-        <div id="jobList" class="job-list"></div>
-        <div id="jobEmpty" class="job-empty">
-          <div class="job-empty-icon">📋</div>
-          <p>還沒有工作紀錄</p>
-          <p class="job-empty-sub">上傳檔案後，處理進度會顯示在這裡</p>
+        <div class="jobs-section">
+          <h3>處理進度</h3>
+          <p class="setting-note">上傳的檔案會在背景自動處理，可關閉瀏覽器。重複檔案跳過時不會建立新工作。</p>
+          <div id="jobList" class="job-list"></div>
+          <div id="jobEmpty" class="job-empty">
+            <div class="job-empty-icon">📋</div>
+            <p>還沒有工作紀錄</p>
+            <p class="job-empty-sub">上傳檔案後，處理進度會顯示在這裡</p>
+          </div>
         </div>
       </section>
 
