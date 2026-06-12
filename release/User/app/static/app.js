@@ -1175,7 +1175,7 @@ $("#llmForm").addEventListener("submit", async (event) => {
   }
 });
 
-const kgColors = { company: "#4fc3f7", person: "#f48fb1", indicator: "#81c784", strategy: "#ffb74d", concept: "#ce93d8" };
+const kgColors = { company: "#1976d2", person: "#c62828", indicator: "#2e7d32", strategy: "#e65100", concept: "#6a1b9a" };
 const kgLabels = { company: "公司", person: "人物", indicator: "指標", strategy: "策略", concept: "概念" };
 
 async function loadKG() {
@@ -1184,7 +1184,7 @@ async function loadKG() {
   try {
     const data = await api(`/api/kg/${projectId}`);
     if (!data.entities || !data.entities.length) {
-      $("#kgGraph").innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#888;font-size:16px;">尚未產生知識圖譜，請先按「產生圖譜」</div>';
+      $("#kgGraph").innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;font-size:16px;">尚未產生知識圖譜，請先按「產生圖譜」</div>';
       $("#kgLegend").innerHTML = "";
       return;
     }
@@ -1195,7 +1195,8 @@ async function loadKG() {
     entities.forEach((e) => {
       let rels = [];
       try { rels = JSON.parse(e.relations_json || "[]"); } catch (_) {}
-      nodeMap[e.entity_name] = { id: e.entity_name, type: e.entity_type, relations: rels.length, size: Math.max(8, Math.min(30, 8 + rels.length * 2)) };
+      const connectionCount = rels.length;
+      nodeMap[e.entity_name] = { id: e.entity_name, type: e.entity_type, connections: connectionCount };
       nodes.push(nodeMap[e.entity_name]);
     });
     entities.forEach((e) => {
@@ -1207,39 +1208,47 @@ async function loadKG() {
         }
       });
     });
+    nodes.forEach((n) => { n.size = Math.max(14, Math.min(45, 14 + n.connections * 1.5)); });
     const container = document.getElementById("kgGraph");
     container.innerHTML = "";
     const width = container.clientWidth;
     const height = container.clientHeight;
     const svg = d3.select(container).append("svg").attr("width", width).attr("height", height);
     const g = svg.append("g");
-    svg.call(d3.zoom().scaleExtent([0.2, 5]).on("zoom", (event) => g.attr("transform", event.transform)));
+    svg.call(d3.zoom().scaleExtent([0.15, 4]).on("zoom", (event) => g.attr("transform", event.transform)));
     const simulation = d3.forceSimulation(nodes)
-      .force("link", d3.forceLink(links).id((d) => d.id).distance(80))
-      .force("charge", d3.forceManyBody().strength(-200))
+      .force("link", d3.forceLink(links).id((d) => d.id).distance(120).strength(0.3))
+      .force("charge", d3.forceManyBody().strength(-400).distanceMax(300))
       .force("center", d3.forceCenter(width / 2, height / 2))
-      .force("collision", d3.forceCollide().radius((d) => d.size + 5));
+      .force("collision", d3.forceCollide().radius((d) => d.size + 12))
+      .force("x", d3.forceX(width / 2).strength(0.05))
+      .force("y", d3.forceY(height / 2).strength(0.05));
     const link = g.append("g").selectAll("line").data(links).join("line")
-      .attr("stroke", "#555").attr("stroke-width", 1).attr("stroke-opacity", 0.6);
+      .attr("stroke", "#bbb").attr("stroke-width", 1.2).attr("stroke-opacity", 0.5);
     const node = g.append("g").selectAll("circle").data(nodes).join("circle")
-      .attr("r", (d) => d.size).attr("fill", (d) => kgColors[d.type] || "#888")
-      .attr("stroke", "#fff").attr("stroke-width", 1.5).attr("opacity", 0.9)
+      .attr("r", (d) => d.size)
+      .attr("fill", (d) => kgColors[d.type] || "#888")
+      .attr("stroke", "#fff").attr("stroke-width", 2).attr("opacity", 0.92)
       .call(d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended));
     const label = g.append("g").selectAll("text").data(nodes).join("text")
-      .text((d) => d.id).attr("font-size", (d) => Math.max(9, Math.min(13, d.size * 0.7)))
-      .attr("fill", "#ddd").attr("text-anchor", "middle").attr("dy", (d) => d.size + 14)
+      .text((d) => d.id)
+      .attr("font-size", (d) => Math.max(8, Math.min(12, d.size * 0.55)))
+      .attr("fill", "#222").attr("text-anchor", "middle").attr("dominant-baseline", "central")
+      .attr("font-weight", (d) => d.size > 25 ? "600" : "400")
       .attr("pointer-events", "none");
     const tooltip = d3.select(container).append("div").attr("class", "kg-tooltip").style("display", "none");
     node.on("mouseover", (event, d) => {
-      tooltip.style("display", "block").html(`<strong>${d.id}</strong><br/>類型：${kgLabels[d.type] || d.type}<br/>連接：${d.relations} 個`);
-      tooltip.style("left", (event.offsetX + 12) + "px").style("top", (event.offsetY - 10) + "px");
-      link.attr("stroke-opacity", (l) => (l.source.id === d.id || l.target.id === d.id) ? 1 : 0.15)
-          .attr("stroke-width", (l) => (l.source.id === d.id || l.target.id === d.id) ? 2.5 : 1);
-      node.attr("opacity", (n) => (n.id === d.id || d.relations.includes(n.id)) ? 1 : 0.2);
+      tooltip.style("display", "block").html(`<strong>${d.id}</strong><br/>類型：${kgLabels[d.type] || d.type}<br/>連接：${d.connections} 個`);
+      tooltip.style("left", (event.offsetX + 15) + "px").style("top", (event.offsetY - 15) + "px");
+      link.attr("stroke-opacity", (l) => (l.source.id === d.id || l.target.id === d.id) ? 0.9 : 0.08)
+          .attr("stroke-width", (l) => (l.source.id === d.id || l.target.id === d.id) ? 2.5 : 0.8);
+      node.attr("opacity", (n) => (n.id === d.id || d.connections > 0) ? 1 : 0.15);
+      label.attr("opacity", (n) => (n.id === d.id || links.some((l) => (l.source.id === d.id && l.target.id === n.id) || (l.target.id === d.id && l.source.id === n.id))) ? 1 : 0.15);
     }).on("mouseout", () => {
       tooltip.style("display", "none");
-      link.attr("stroke-opacity", 0.6).attr("stroke-width", 1);
-      node.attr("opacity", 0.9);
+      link.attr("stroke-opacity", 0.5).attr("stroke-width", 1.2);
+      node.attr("opacity", 0.92);
+      label.attr("opacity", 1);
     });
     simulation.on("tick", () => {
       link.attr("x1", (d) => d.source.x).attr("y1", (d) => d.source.y).attr("x2", (d) => d.target.x).attr("y2", (d) => d.target.y);
@@ -1252,7 +1261,7 @@ async function loadKG() {
     const legendHtml = Object.entries(kgColors).map(([type, color]) => `<span class="kg-legend-item"><span class="kg-legend-dot" style="background:${color}"></span>${kgLabels[type] || type}</span>`).join("");
     $("#kgLegend").innerHTML = legendHtml;
   } catch (err) {
-    $("#kgGraph").innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#f44;font-size:14px;">載入失敗：${escapeHtml(err.message)}</div>`;
+    $("#kgGraph").innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#c62828;font-size:14px;">載入失敗：${escapeHtml(err.message)}</div>`;
   }
 }
 
