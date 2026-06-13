@@ -2771,25 +2771,6 @@ INVESTMENT_KEYWORDS = {
 NOISE_PHRASES = {'重要內容摘錄', '如下圖所示', '從圖中可以看出', '如下所示', '也就是說', '換句話說', '事實上', '例如', '比如', '就是說', '意思是', '基本上', '一般來說', '通常', '其實', '所以', '因為', '那麼', '這樣', '這樣的話', '資料來源', '詳見圖', '上圖說明', '自選返回', '擴展關聯', '點擊訂購', '版新用戶', '期貨開戶', '不限資金', '直接申請', '全国最低', '手續費', '任何地方', '免費辦理', '賠償差價', '客服微信', '即時走勢', '分鐘更多', '儲存格', '閃電下單', '使用指引', '觀念篇', '實戰篇', '理財寶碼', '占股本比重', '資料統計時間為', '統計天數', '統計區間', '股票代號', '股票代号', '筆價細勢', '名合計', '統計', '元買進', '買壹超', '買均價', '的日', '月的', '的分布圖', '的走勢圖', '成交量成交量', '均線外資投信主力', '均線外资投信主力', '均線外瓷投信主力', '隔日冲主力', '隔目冲主力', '主力地圆', '主力地园', '主力地图', '線大單券商主力地', '本益比红缘燈分俱', '大類存股好標的全'}
 
 
-KG_PATTERNS = {
-    "company": [
-        r"台積電|中信金|台泥|聯詠|華碩|鴻海|新普|順達科|永豐金|元大金|台新金|第一金|兆豐金|宏達電|友達|群創",
-    ],
-    "person": [
-        r"陳重銘|劉益杰|林明樟|獨孤求敗|蔡明介|施崇棠|蕭明道|朱紀中|郭恭克",
-    ],
-    "indicator": [
-        r"本益比|殖利率|毛利率|營業利益率|淨利率|EPS|ROE|ROA|PBR|KD|MACD|RSI|VIX",
-    ],
-    "strategy": [
-        r"存股|當沖|波段|停損|停利|定期定額|價值投資|成長投資|股息投資|分散風險|複利|危機入市",
-    ],
-    "concept": [
-        r"K線|均線|布林通道|趨勢線|支撐|壓力|缺口|型態|反轉|黃金交叉|死亡交叉|超買|超賣|填權息|除權息|融資|融券|三大法人|籌碼|技術分析|基本面|景氣循環",
-    ],
-}
-
-
 def extract_wiki_topics(project_id: str) -> list[str]:
     topics: dict[str, int] = {}
     for row in rows("SELECT content FROM chunks WHERE project_id=?", (project_id,)):
@@ -2829,6 +2810,43 @@ def get_wiki(project_id: str) -> dict[str, Any]:
 
 _WIKI_JOBS: dict[str, dict[str, Any]] = {}
 _WIKI_LOCK = threading.Lock()
+
+KG_PATTERNS = {
+    "company": re.compile(r'台積電|中信金|台泥|聯詠|華泥|聯詠|華碩|鴻海|新普|順達科|永豐金|元大金|台新金|第一金|兆豐金|宏達電|友達|群創|Asus|Zenfone'),
+    "person": re.compile(r'陳重銘|劉益杰|林明樟|獨孤求敗|蔡明介|施崇棠|蕭明道|朱紀中|郭恭克|Andre Kostolany|JG'),
+    "indicator": re.compile(r'本益比|殖利率|毛利率|營業利益率|淨利率|EPS|ROE|ROA|PBR|KD|MACD|RSI|VIX|PMI|GDP|CPI'),
+    "strategy": re.compile(r'存股|當沖|波段|停損|停利|定期定額|價值投資|成長投資|股息投資|分散風險|複利|危機入市|反市場'),
+    "concept": re.compile(r'K線|均線|布林通道|趨勢線|支撐|壓力|缺口|型態|反轉|黃金交叉|死亡交叉|超買|超賣|填權息|除權息|融資|融券|三大法人|籌碼|技術分析|基本面|景氣循環|量價分析|投資組合|投資紀律|投資心理|風險管理|財務報表|損益表|資產負債表|現金流量表'),
+    "book": re.compile(r'6年存到300張股票|140張圖看懂量價分析|抓住線圖股民變股神|獵豹財務長投資魔法書|獵豹財務長投資藏寶圖|財報狗教你挖好股|權證小哥短線終極戰法|羅威多週期KD實戰分析|100張圖學會外匯操作|蕭明道教你主升段獨門獲利絕技|獨孤求敗贏在修正的股市操盤絕技|景氣循環投資|一個投機者的告白|經濟指標告訴你|用生活常識就能看懂財務報表|財經記者的告白|不看盤我才賺到大錢|反市場JG股市操作原理|想要看懂全球經濟變化|攀高續抱快逃K線之道|飆股新手的實戰筆記|實戰冠軍E大教你用200張圖學會K線籌碼|圖解給投資新手的第一本股票理財書|期籌碼|追蹤籌碼找飆股|從法人手中賺到錢|主力K線技術分析|一個投機者的告白實戰書|當代財經大師的獲利真相課'),
+}
+
+
+def _generate_kg_from_wiki(project_id: str) -> None:
+    with db() as conn:
+        conn.execute("DELETE FROM knowledge_graph WHERE project_id=?", (project_id,))
+    wiki_pages = rows("SELECT title, content FROM wiki_pages WHERE project_id=?", (project_id,))
+    entity_map: dict[str, dict[str, Any]] = {}
+    for page in wiki_pages:
+        text = page["title"] + " " + page["content"]
+        for etype, pattern in KG_PATTERNS.items():
+            for match in pattern.finditer(text):
+                name = match.group()
+                if name not in entity_map:
+                    entity_map[name] = {"name": name, "type": etype, "relations": set(), "pages": set()}
+                entity_map[name]["pages"].add(page["title"])
+    for name1, data1 in entity_map.items():
+        for name2, data2 in entity_map.items():
+            if name1 != name2 and data1["type"] != data2["type"]:
+                if data1["pages"] & data2["pages"]:
+                    data1["relations"].add(name2)
+    now_str = now()
+    with db() as conn:
+        for name, data in entity_map.items():
+            if data["relations"]:
+                conn.execute("INSERT INTO knowledge_graph VALUES (?,?,?,?,?,?,?)",
+                    (str(uuid.uuid4()), project_id, name, data["type"],
+                     json.dumps(list(data["relations"])[:15], ensure_ascii=False),
+                     json.dumps(list(data["pages"])[:5], ensure_ascii=False), now_str))
 
 
 def wiki_worker(project_id: str, job_id: str) -> None:
@@ -2907,6 +2925,7 @@ Evidence：
         with _WIKI_LOCK:
             _WIKI_JOBS[job_id]["status"] = "done"
             _WIKI_JOBS[job_id]["done"] = _WIKI_JOBS[job_id]["total"]
+        _generate_kg_from_wiki(project_id)
     except Exception as exc:
         with _WIKI_LOCK:
             _WIKI_JOBS[job_id]["status"] = "failed"
@@ -2983,12 +3002,6 @@ def delete_wiki(project_id: str) -> dict[str, str]:
     return {"message": "維基已刪除"}
 
 
-KG_ENTITY_TYPES = {
-    "company": r"[\u53f0\u7a4d\u96fb\u4e2d\u4fe1\u91d1\u53f0\u6ce5\u806f\u8a6d\u83ef\u78a7\u6d77\u9d3c\u8c6c\u6c38\u8c50\u5143\u5927\u91d1\u7b2c\u4e00\u91d1\u53f0\u65b0\u91d1\u5146\u8c50\u91d1]",
-    "person": r"[\u9673\u91cd\u9293\u5289\u76ca\u6770\u7363\u8c79\u8ca2\u52d2\u7363\u8c79\u738b\u660e\u9053\u738b\u6770\u97f3\u7f57\u5a01]",
-    "indicator": r"[\u672c\u76ca\u6bd4\u6bcb\u5229\u7387EPSROEROA\u5747\u7ddaKD|MACD|RSI|\u5e03\u6797\u901a\u9053]",
-    "strategy": r"[\u5b58\u80a1\u770b\u591a\u770b\u7a7a\u7576\u6c96\u6ce2\u6bb5\u505c\u640d\u505c\u5229\u7701\u7d04\u5b9a\u984d]",
-}
 
 
 @app.get("/kg/{project_id}")
@@ -3005,34 +3018,9 @@ def generate_knowledge_graph(project_id: str) -> dict[str, Any]:
     project = one("SELECT * FROM projects WHERE id=?", (project_id,))
     if not project:
         raise HTTPException(404, "找不到專案")
-    with db() as conn:
-        conn.execute("DELETE FROM knowledge_graph WHERE project_id=?", (project_id,))
-    entity_map: dict[str, dict[str, Any]] = {}
-    for row in rows("SELECT content, file_id FROM chunks WHERE project_id=?", (project_id,)):
-        text = row["content"]
-        for etype, patterns in KG_PATTERNS.items():
-            for pattern in patterns:
-                for match in re.finditer(pattern, text):
-                    name = match.group()
-                    if name not in entity_map:
-                        entity_map[name] = {"name": name, "type": etype, "relations": set(), "chunks": set()}
-                    entity_map[name]["chunks"].add(row["file_id"])
-    for name1, data1 in entity_map.items():
-        for name2, data2 in entity_map.items():
-            if name1 != name2 and len(data1["chunks"] & data2["chunks"]) >= 2:
-                data1["relations"].add(name2)
-    created = 0
-    with db() as conn:
-        for name, data in entity_map.items():
-            if len(data["chunks"]) >= 2:
-                conn.execute(
-                    "INSERT INTO knowledge_graph VALUES (?,?,?,?,?,?,?)",
-                    (str(uuid.uuid4()), project_id, name, data["type"],
-                     json.dumps(list(data["relations"])[:20], ensure_ascii=False),
-                     json.dumps(list(data["chunks"])[:10]), now()),
-                )
-                created += 1
-    return {"message": f"知識圖譜已產生：{created} 個實體", "entities": created}
+    _generate_kg_from_wiki(project_id)
+    count = one("SELECT COUNT(*) as c FROM knowledge_graph WHERE project_id=?", (project_id,))["c"]
+    return {"message": f"知識圖譜已產生：{count} 個實體", "entities": count}
 
 
 @app.post("/admin/rebuild")

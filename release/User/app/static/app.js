@@ -1237,6 +1237,13 @@ async function loadKG() {
       interaction: { hover: true, tooltipDelay: 100, zoomView: true, dragView: true, navigationButtons: false },
       layout: { improvedLayout: true },
     });
+    network.on("click", async (params) => {
+      if (params.nodes.length > 0) {
+        const nodeId = params.nodes[0];
+        await showWikiForEntity(nodeId, projectId);
+      }
+    });
+
     const legendHtml = Object.entries(kgColors).map(([type, color]) => `<span class="kg-legend-item"><span class="kg-legend-dot" style="background:${color}"></span>${kgLabels[type] || type}</span>`).join("");
     $("#kgLegend").innerHTML = legendHtml;
   } catch (err) {
@@ -1258,6 +1265,28 @@ $("#kgGenerateBtn").addEventListener("click", async () => {
     $("#kgMsg").textContent = "✗ 產生失敗：" + err.message;
   }
 });
+
+async function showWikiForEntity(entityName, projectId) {
+  try {
+    const data = await api(`/api/wiki/${projectId}`);
+    const matchedPages = (data.pages || []).filter((p) => p.title.includes(entityName) || p.content.includes(entityName));
+    if (matchedPages.length === 0) {
+      matchedPages.push({ title: entityName, content: `暫無關於「${entityName}」的維基條目。`, content: `暫無關於「${entityName}」的維基條目。\n\n此實體在知識圖譜中與其他概念有關聯，但尚未建立專門的維基頁面。` });
+    }
+    const page = matchedPages[0];
+    let body = escapeHtml(page.content).replace(/^## (.+)$/gm, "<h3>$1</h3>").replace(/^### (.+)$/gm, "<h4>$1</h4>").replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/^- (.+)$/gm, "<li>$1</li>").replace(/(<li>.*<\/li>)/gs, "<ul>$1</ul>");
+    $("#wikiModalTitle").textContent = page.title;
+    $("#wikiModalBody").innerHTML = body;
+    $("#wikiModal").classList.remove("hidden");
+  } catch (_) {
+    $("#wikiModalTitle").textContent = entityName;
+    $("#wikiModalBody").innerHTML = `<p>無法載入維基內容。</p>`;
+    $("#wikiModal").classList.remove("hidden");
+  }
+}
+
+$("#wikiModalClose").addEventListener("click", () => $("#wikiModal").classList.add("hidden"));
+$("#wikiModal").addEventListener("click", (e) => { if (e.target === $("#wikiModal")) $("#wikiModal").classList.add("hidden"); });
 
 const workflowStages = [
   { key: "upload", name: "檔案上傳" },
