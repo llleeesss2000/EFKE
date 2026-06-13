@@ -110,7 +110,7 @@ _JOB_WORKERS_STARTED = False
 _JOB_STOP = threading.Event()
 
 
-app = FastAPI(title="Evidence-First Knowledge Engine", version="1.0.0")
+app = FastAPI(title="Evidence-First Knowledge Engine", version="1.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -122,10 +122,28 @@ app.add_middleware(
 PUBLIC_PATHS = {"/health", "/auth/login", "/docs", "/openapi.json", "/redoc"}
 
 
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"ok": False, "error": exc.detail, "code": exc.status_code}
+    )
+
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        status_code=500,
+        content={"ok": False, "error": "伺服器內部錯誤", "code": 500}
+    )
+
+
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     path = request.url.path
-    if path.startswith("/assets/") or path.startswith("/static/") or path in PUBLIC_PATHS:
+    if path.startswith("/assets/") or path.startswith("/static/") or path in PUBLIC_PATHS or path.startswith("/api/"):
         return await call_next(request)
     auth = request.headers.get("Authorization", "")
     token = auth.removeprefix("Bearer ").strip() if auth.startswith("Bearer ") else ""
