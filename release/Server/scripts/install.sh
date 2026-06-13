@@ -68,6 +68,15 @@ python -m uv pip install -U "transformers>=4.57.3,<5.0.0" safetensors tokenizers
 python -m uv pip install ftfy || python -m pip install --timeout 120 -U ftfy
 python -m uv pip install hf_transfer || python -m pip install --timeout 120 -U hf_transfer
 HF_HUB_ENABLE_HF_TRANSFER=1 MINERU_MODEL_SOURCE=huggingface python -m mineru.cli.models_download -s huggingface -m pipeline
+
+if command -v cargo >/dev/null 2>&1; then
+  echo "編譯 Rust 加速模組..."
+  cd rust-tools && cargo build --release 2>&1 | tail -3 && cd ..
+  echo "Rust 工具編譯完成"
+else
+  echo "未安裝 Rust，跳過 Rust 加速模組（可選）"
+fi
+
 python - <<'PY'
 from app.main import init_db
 init_db()

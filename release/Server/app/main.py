@@ -52,6 +52,7 @@ except Exception:  # pragma: no cover
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
+RUST_BIN = BASE_DIR / "rust-tools" / "bin"
 load_dotenv(BASE_DIR / ".env")
 
 DATA_DIR = Path(os.getenv("SERVER_DATA_DIR", BASE_DIR / "server_data"))
@@ -380,7 +381,26 @@ def sha(value: str | bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def run_rust_tool(tool_name: str, args: list[str], timeout: int = 30) -> str | None:
+    tool_path = RUST_BIN / tool_name
+    if not tool_path.exists():
+        return None
+    try:
+        result = subprocess.run(
+            [str(tool_path)] + args,
+            capture_output=True, text=True, timeout=timeout
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+        return None
+    except Exception:
+        return None
+
+
 def file_sha(path: Path) -> str:
+    result = run_rust_tool("efke-hash", ["--file", str(path)])
+    if result:
+        return result
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -459,6 +479,19 @@ def pct(value: int, total: int) -> int:
 
 
 def split_chunks(text: str, size: int = 900, overlap: int = 120) -> list[tuple[int, int, str]]:
+    result = run_rust_tool("efke-chunk", ["--size", str(size), "--overlap", str(overlap)], timeout=10)
+    if result:
+        chunks = []
+        for line in result.split("\n"):
+            if not line.strip():
+                continue
+            try:
+                obj = json.loads(line)
+                chunks.append((obj["start"], obj["end"], obj["content"]))
+            except (json.JSONDecodeError, KeyError):
+                pass
+        if chunks:
+            return chunks
     clean = " ".join(text.split())
     chunks: list[tuple[int, int, str]] = []
     start = 0

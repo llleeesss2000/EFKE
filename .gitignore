@@ -38,3 +38,7 @@ AGENTS.md
 # Playwright
 .playwright-mcp/
 exports/
+
+# Rust build artifacts
+release/Server/rust-tools/target/
+release/Server/rust-tools/bin/*.d
