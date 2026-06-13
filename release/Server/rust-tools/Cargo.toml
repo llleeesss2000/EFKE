@@ -1,0 +1,31 @@
+[package]
+name = "efke-tools"
+version = "1.0.0"
+edition = "2021"
+description = "High-performance tools for Evidence-First Knowledge Engine"
+
+[[bin]]
+name = "efke-hash"
+path = "src/hash.rs"
+
+[[bin]]
+name = "efke-scan"
+path = "src/scan.rs"
+
+[[bin]]
+name = "efke-chunk"
+path = "src/chunk.rs"
+
+[[bin]]
+name = "efke-meta"
+path = "src/meta.rs"
+
+[dependencies]
+sha2 = "0.10"
+walkdir = "2"
+rayon = "1.8"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.31", features = ["bundled"] }
+clap = { version = "4", features = ["derive"] }
